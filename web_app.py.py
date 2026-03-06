@@ -80,7 +80,7 @@ if isinstance(df, pd.DataFrame):
         with st.expander("🔐 관리자 접속"):
             admin_pw = st.text_input("암호 입력", type="password")
             # 💡 여기서 "1234" 부분을 원하는 비밀번호로 수정하세요!
-            is_admin = (admin_pw == "1234") 
+            is_admin = (admin_pw == "dhkdrkthf123") 
 
     # 🔍 검색창
     search_q = st.text_input("🔍 캐릭터명 검색", placeholder="닉네임 입력")
@@ -166,3 +166,4 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error(f"데이터 로드 실패: {result}")
+
