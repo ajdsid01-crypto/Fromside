@@ -10,47 +10,39 @@ st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="
 
 st.markdown("""
     <style>
-    /* 전체 배경 및 텍스트 설정 */
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
     h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; text-align: left !important; }
     
-    /* 🚨 표 내부의 모든 셀(숫자 포함)과 헤더를 강제로 왼쪽 정렬 */
+    /* 표 내부 모든 항목 강제 왼쪽 정렬 */
     [data-testid="stDataFrame"] div[data-baseweb="table"] div {
         text-align: left !important;
         justify-content: flex-start !important;
     }
-    
-    /* 데이터프레임 헤더 및 셀 텍스트 정렬 */
-    [data-testid="stDataFrame"] td, [data-testid="stDataFrame"] th {
-        text-align: left !important;
-    }
-
-    /* 검색창 스타일 */
+    [data-testid="stDataFrame"] td, [data-testid="stDataFrame"] th { text-align: left !important; }
     input { background-color: #111 !important; color: #76B900 !important; border: 1px solid #333 !important; }
-    
-    /* 탭 메뉴 디자인 */
-    .stTabs [data-baseweb="tab-list"] { justify-content: flex-start !important; gap: 20px; }
-    .stTabs [data-baseweb="tab"] { font-size: 17px !important; color: #666 !important; border: none !important; }
+    .stTabs [data-baseweb="tab"] { font-size: 17px !important; color: #666 !important; }
     .stTabs [aria-selected="true"] { color: #76B900 !important; border-bottom: 3px solid #76B900 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 📂 2. 데이터 로드 및 정밀 숫자 변환
-@st.cache_data(ttl=60)
-def load_perfect_alignment_data():
+# 📂 2. 데이터 로드 및 전처리 (정산 기능 위해 캐시 10초)
+@st.cache_data(ttl=10)
+def load_full_system_data():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds_info = st.secrets["gcp_service_account"]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, scope)
         client = gspread.authorize(creds)
-        sheet = client.open("조협오산오살").sheet1
+        
+        spreadsheet = client.open("조협오산오살")
+        sheet = spreadsheet.sheet1
         all_data = sheet.get_all_values()
         
         header, rows = all_data[6], all_data[7:]
         df = pd.DataFrame(rows, columns=header)
         df = df[df['이름'].str.strip() != ""].copy()
         
-        # 숫자로 변환하는 함수
+        # 숫자 변환 함수
         def to_int(val):
             if not val: return 0
             clean = re.sub(r'[^0-9]', '', str(val))
@@ -61,33 +53,36 @@ def load_perfect_alignment_data():
             match = re.search(r'([\d\.]+)', str(v))
             return float(match.group(1)) if match else 0.0
 
-        # 정렬용 숫자 컬럼 생성 (_v)
         df['전투력_v'] = df['전투력'].apply(to_int)
         df['누계_v'] = df['누계'].apply(to_int)
         df['분배금_v'] = df['분배금'].apply(to_int)
         df['성장_v'] = df['성장'].apply(get_growth)
         
-        return all_data[0][0], df
+        return spreadsheet, sheet, df, header
     except Exception as e:
-        return None, str(e)
+        return None, None, str(e), None
 
-update_time, result = load_perfect_alignment_data()
+spreadsheet, worksheet, df, sheet_header = load_full_system_data()
 
-# 📊 표 컬럼 설정 (좌측 정렬을 위해 TextColumn 사용)
+# 📊 표 컬럼 설정 (좌측 정렬 위해 TextColumn 유지)
 column_config = {
     "문파": st.column_config.TextColumn("문파"),
     "이름": st.column_config.TextColumn("이름"),
     "직업": st.column_config.TextColumn("직업"),
     "전투력": st.column_config.TextColumn("전투력"),
     "성장": st.column_config.TextColumn("성장"),
-    "누계": st.column_config.TextColumn("누계"),
-    "분배금": st.column_config.TextColumn("분배금"),
+    "상태": st.column_config.TextColumn("상태"),
 }
 
-if isinstance(result, pd.DataFrame):
-    df = result
+if isinstance(df, pd.DataFrame):
     st.title("🛡️ 조협클래식 - 오늘만산다,살자")
-    
+
+    # 🔑 3. 관리자 전용 사이드바
+    with st.sidebar:
+        st.header("⚙️ 관리자 설정")
+        admin_pw = st.text_input("관리자 암호", type="password")
+        is_admin = (admin_pw == "1234") # 👈 원하시는 암호로 수정하세요
+
     # 🔍 검색창
     search_q = st.text_input("🔍 캐릭터명 검색", placeholder="닉네임 입력")
     if search_q:
@@ -101,7 +96,6 @@ if isinstance(result, pd.DataFrame):
     with tabs[0]: # 보스 현황
         st.subheader("🗓️ 보스 참여 순위")
         boss_df = df.sort_values(by="누계_v", ascending=False).copy()
-        boss_df['누계'] = boss_df['누계_v'].astype(str)
         st.dataframe(boss_df[['문파', '이름', '14시', '18시', '22시', '누계']], 
                      use_container_width=True, hide_index=True, height=600, column_config=column_config)
 
@@ -119,7 +113,7 @@ if isinstance(result, pd.DataFrame):
         st.dataframe(growth_df[['문파', '이름', '성장', '전투력']], 
                      use_container_width=True, hide_index=True, height=600, column_config=column_config)
 
-    with tabs[3]: # 🏆 직업별 랭킹
+    with tabs[3]: # 직업별 랭킹
         st.subheader("👑 직업별 명예의 전당")
         job_list = sorted(df['직업'].unique())
         selected_job = st.selectbox("직업을 선택하세요", job_list)
@@ -150,13 +144,42 @@ if isinstance(result, pd.DataFrame):
             fig_bar.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white")
             st.plotly_chart(fig_bar, use_container_width=True)
 
-    with tabs[5]: # 정산 현황
-        st.subheader("💰 실시간 다이아 분배 예정")
-        money_df = df.sort_values(by="분배금_v", ascending=False).copy()
-        # 분배금 숫자 뒤에 콤마와 단위를 붙여서 텍스트로 변환 (좌측 정렬 보장)
-        money_df['분배금'] = money_df['분배금_v'].apply(lambda x: f"{x:,} 다이아")
-        st.dataframe(money_df[['문파', '이름', '분배금']], 
-                     use_container_width=True, hide_index=True, height=600, column_config=column_config)
+    with tabs[5]: # 정산 현황 (필터 및 관리자 체크 기능 통합)
+        st.subheader("💰 실시간 다이아 분배 및 정산 상태")
+        
+        # 1. 전투력이 1보다 큰 성실 참여자만 필터링
+        settlement_df = df[df['전투력_v'] > 1].copy()
+        settlement_df = settlement_df.sort_values(by="분배금_v", ascending=False)
+        settlement_df['분배금'] = settlement_df['분배금_v'].apply(lambda x: f"{x:,} 다이아")
+
+        if is_admin:
+            st.success("✅ 관리자 모드: 정산상태를 선택하고 아래 [저장] 버튼을 누르세요.")
+            edited_df = st.data_editor(
+                settlement_df[['이름', '분배금', '정산상태']],
+                column_config={
+                    "정산상태": st.column_config.SelectboxColumn("정산상태", options=["미정산", "정산완료"]),
+                },
+                disabled=["이름", "분배금"],
+                hide_index=True, use_container_width=True
+            )
+            
+            if st.button("💾 정산 상태를 구글 시트에 저장하기"):
+                with st.spinner("구글 시트 업데이트 중..."):
+                    status_col_idx = sheet_header.index("정산상태") + 1
+                    for index, row in edited_df.iterrows():
+                        try:
+                            # 이름으로 해당 유저의 행 찾기
+                            cell = worksheet.find(row['이름'])
+                            worksheet.update_cell(cell.row, status_col_idx, row['정산상태'])
+                        except: continue
+                    st.success("저장 완료! 페이지가 곧 갱신됩니다.")
+                    st.cache_data.clear()
+        else:
+            # 일반 유저 화면
+            settlement_df['상태'] = settlement_df['정산상태'].apply(lambda x: "✅ 정산완료" if x == "정산완료" else "⏳ 대기중")
+            st.info(f"💡 현재 전투력을 보고한 {len(settlement_df)}명만 분배 대상입니다.")
+            st.dataframe(settlement_df[['문파', '이름', '분배금', '상태']], 
+                         use_container_width=True, hide_index=True, height=600, column_config=column_config)
 
 else:
-    st.error(f"데이터 로드 실패: {result}")
+    st.error(f"데이터 로드 실패: {df}")
