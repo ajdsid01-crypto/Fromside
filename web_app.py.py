@@ -5,45 +5,60 @@ from oauth2client.service_account import ServiceAccountCredentials
 import re
 import plotly.express as px
 
-# 1. 🎨 [디자인] NVIDIA 다크 테마 및 전체 좌측 정렬 강제 설정
+# 1. 🎨 [디자인] NVIDIA 다크 테마 및 강제 스타일 설정
 st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="wide")
 
 st.markdown("""
     <style>
+    /* 전체 배경 및 텍스트 강제 고정 */
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
     h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; text-align: left !important; }
     
-    /* 표 내부 항목 좌측 정렬 */
+    /* 표 내부 항목 좌측 정렬 및 배경색 강제 */
+    [data-testid="stDataFrame"] { background-color: #111111 !important; }
     [data-testid="stDataFrame"] div[data-baseweb="table"] div {
         text-align: left !important;
         justify-content: flex-start !important;
+        background-color: #111111 !important;
+        color: white !important;
     }
-    [data-testid="stDataFrame"] td, [data-testid="stDataFrame"] th { text-align: left !important; }
 
-    /* 사이드바 스타일 */
-    [data-testid="stSidebar"] { min-width: 260px; }
-    input { background-color: #111 !important; color: #76B900 !important; border: 1px solid #333 !important; }
-    
-    /* 탭 메뉴 디자인 */
-    .stTabs [data-baseweb="tab-list"] { justify-content: flex-start !important; gap: 20px; }
-    .stTabs [data-baseweb="tab"] { font-size: 17px !important; color: #666 !important; border: none !important; }
-    .stTabs [aria-selected="true"] { color: #76B900 !important; border-bottom: 3px solid #76B900 !important; }
-    
-    /* 참여자 명단 박스 스타일 */
+    /* MVP 및 강조 박스 스타일 */
+    .mvp-box {
+        background: linear-gradient(45deg, #11, #1a1a1a);
+        border: 2px solid #76B900;
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+        margin-bottom: 20px;
+        box-shadow: 0 0 15px rgba(118, 185, 0, 0.3);
+    }
     .participant-box {
         background-color: #111;
         border-left: 5px solid #76B900;
-        padding: 15px;
+        padding: 12px;
         border-radius: 5px;
         margin-bottom: 10px;
-        min-height: 150px;
+        min-height: 100px;
     }
     </style>
     """, unsafe_allow_html=True)
 
+# 🏆 순위에 따른 메달 부여 함수 (재사용 가능)
+def add_medal_logic(df):
+    df = df.reset_index(drop=True)
+    df.insert(0, 'Rank', range(1, len(df) + 1))
+    def medal_icon(rank):
+        if rank == 1: return "🥇 1위"
+        elif rank == 2: return "🥈 2위"
+        elif rank == 3: return "🥉 3위"
+        else: return f"{rank}위"
+    df['순위'] = df['Rank'].apply(medal_icon)
+    return df.drop(columns=['Rank'])
+
 # 📂 2. 데이터 로드 및 전처리
 @st.cache_data(ttl=10)
-def load_boss_optimized_data():
+def load_all_guild_data():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds_info = st.secrets["gcp_service_account"]
@@ -58,30 +73,29 @@ def load_boss_optimized_data():
         df = df[df['이름'].str.strip() != ""].copy()
         
         def to_int(val):
-            if not val: return 0
             clean = re.sub(r'[^0-9]', '', str(val))
             return int(clean) if clean else 0
+        def get_growth(v):
+            match = re.search(r'([\d\.]+)', str(v))
+            return float(match.group(1)) if match else 0.0
 
         df['전투력_v'] = df['전투력'].apply(to_int)
         df['누계_v'] = df['누계'].apply(to_int)
         df['분배금_v'] = df['분배금'].apply(to_int)
+        df['성장_v'] = df['성장'].apply(get_growth)
         
-        # 🛡️ 참여 여부 판단 (대문자 O, 소문자 o, 한글 오 등 대응)
-        def is_participated(val):
-            return str(val).strip().lower() in ['o', 'ㅇ', 'v']
-
-        df['14시_p'] = df['14시'].apply(is_participated)
-        df['18시_p'] = df['18시'].apply(is_participated)
-        df['22시_p'] = df['22시'].apply(is_participated)
+        def is_p(val): return str(val).strip().lower() in ['o', 'ㅇ', 'v']
+        df['14_p'], df['18_p'], df['22_p'] = df['14시'].apply(is_p), df['18시'].apply(is_p), df['22시'].apply(is_p)
         
         return spreadsheet, sheet, df, header
     except Exception as e:
         return None, None, str(e), None
 
-spreadsheet, worksheet, df, sheet_header = load_boss_optimized_data()
+spreadsheet, worksheet, df, sheet_header = load_all_guild_data()
 
-# 📊 3. 화면 구성 및 사이드바
+# 📊 3. 메인 화면 구성
 if isinstance(df, pd.DataFrame):
+    # --- 사이드바 ---
     with st.sidebar:
         st.markdown("<h2 style='text-align: center; color: #76B900;'>오늘만산다,살자</h2>", unsafe_allow_html=True)
         st.divider()
@@ -91,99 +105,98 @@ if isinstance(df, pd.DataFrame):
         st.divider()
         
         st.subheader("📺 연합 방송 센터")
-        st.link_button("🎥 가미가미[gamigami]", "https://www.youtube.com/@gamigami706")
-        st.link_button("🎥 스트리머왕코", "https://www.youtube.com/@스트리머왕코")
-        st.link_button("🎥 아이엠솔이 I AM SOLEE", "https://www.youtube.com/@아이엠솔이")
-        st.divider()
+        c1, c2 = st.columns([1, 4])
+        with c1: st.image("https://img.icons8.com/neon/96/youtube-play.png", width=35)
+        with c2: st.link_button("가미가미 TV", "https://www.youtube.com/@gamigami706")
+        
+        c1, c2 = st.columns([1, 4])
+        with c1: st.image("https://img.icons8.com/neon/96/controller.png", width=35)
+        with c2: st.link_button("왕코 방송국", "https://www.youtube.com/@스트리머왕코")
 
+        c1, c2 = st.columns([1, 4])
+        with c1: st.image("https://img.icons8.com/neon/96/microphone.png", width=35)
+        with c2: st.link_button("아이엠솔이", "https://www.youtube.com/@아이엠솔이")
+        
+        st.divider()
         with st.expander("🔐 관리자 전용"):
             admin_pw = st.text_input("암호 입력", type="password")
-            is_admin = (admin_pw == "1234") 
-            if st.button("🔄 데이터 강제 새로고침"):
+            is_admin = (admin_pw == "1234") # 비밀번호 수정 가능
+            if st.button("🔄 데이터 새로고침"):
                 st.cache_data.clear()
                 st.rerun()
 
+    # --- 메인 탭 (총 6개) ---
     st.title("🛡️ 조협클래식 통합 관리 시스템")
-    
     tabs = st.tabs(["⚔️ 보스 현황", "🛡️ 연합 전력", "🔥 성장 랭킹", "🏆 직업별 랭킹", "📊 분석 통계", "💰 정산 현황"])
 
-    with tabs[0]: # 보스 현황 (개선된 레이아웃)
-        st.subheader("⚔️ 시간대별 보스 참여자 명단")
+    with tabs[0]: # 보스 현황
+        max_val = df['누계_v'].max()
+        if max_val > 0:
+            mvp_names = ", ".join(df[df['누계_v'] == max_val]['이름'].tolist())
+            st.markdown(f"<div class='mvp-box'><h3 style='margin:0; color:#76B900;'>🏆 이번 주 보탐 MVP</h3><h1 style='margin:10px 0;'>{mvp_names}</h1><p style='margin:0; color:#888;'>총 {max_val}회 참여 중!</p></div>", unsafe_allow_html=True)
         
-        # 🟢 상단: 시간별 참여자 요약 리스트
+        st.subheader("⚔️ 시간대별 참여 명단")
         p_cols = st.columns(3)
-        times = [("14시", "14시_p"), ("18시", "18시_p"), ("22시", "22시_p")]
-        
-        for i, (time_name, p_col) in enumerate(times):
+        t_info = [("14시", "14_p"), ("18시", "18_p"), ("22시", "22_p")]
+        for i, (t_name, p_col) in enumerate(t_info):
             with p_cols[i]:
-                # 해당 시간에 참여한 사람 명단 추출
-                participants = df[df[p_col]]['이름'].tolist()
-                count = len(participants)
-                
-                st.markdown(f"#### 🕒 {time_name} ({count}명)")
-                if count > 0:
-                    names_str = ", ".join(participants)
-                    st.markdown(f"""<div class='participant-box'>{names_str}</div>""", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""<div class='participant-box' style='color:#666;'>참여자가 없습니다.</div>""", unsafe_allow_html=True)
-
-        st.divider()
+                names = df[df[p_col]]['이름'].tolist()
+                st.markdown(f"#### 🕒 {t_name} ({len(names)}명)")
+                st.markdown(f"<div class='participant-box'>{', '.join(names) if names else '참여자 없음'}</div>", unsafe_allow_html=True)
         
-        # 🟡 하단: 기존 상세 o/x 표 (아래로 이동)
-        st.subheader("🗓️ 참여 상세 기록 (o/x)")
-        boss_detail = df.sort_values(by="누계_v", ascending=False).copy()
-        st.dataframe(boss_detail[['문파', '이름', '14시', '18시', '22시', '누계']], 
-                     use_container_width=True, hide_index=True, height=500)
+        st.divider()
+        boss_rank = add_medal_logic(df.sort_values(by="누계_v", ascending=False))
+        st.dataframe(boss_rank[['순위', '문파', '이름', '14시', '18시', '22시', '누계']], use_container_width=True, hide_index=True)
 
     with tabs[1]: # 연합 전력
-        st.subheader("📈 문파 전투력 명단")
-        cp_df = df.sort_values(by="전투력_v", ascending=False).copy()
-        cp_df['전투력_표시'] = cp_df['전투력_v'].apply(lambda x: f"{x:,}")
-        st.dataframe(cp_df[['문파', '이름', '직업', '전투력_표시', '성장', '카톡']], 
-                     use_container_width=True, hide_index=True, height=600)
+        st.subheader("📈 연합 전투력 명예의 전당")
+        cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
+        cp_rank['전투력_표시'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
+        st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시', '성장']], use_container_width=True, hide_index=True)
+
+    with tabs[2]: # 성장 랭킹
+        st.subheader("🔥 성장률 TOP 30")
+        growth_df = add_medal_logic(df.sort_values(by="성장_v", ascending=False).head(30))
+        st.dataframe(growth_df[['순위', '문파', '이름', '성장', '전투력']], use_container_width=True, hide_index=True)
+
+    with tabs[3]: # 직업별 랭킹
+        st.subheader("👑 직업별 랭킹")
+        job = st.selectbox("직업 선택", sorted(df['직업'].unique()))
+        job_df = add_medal_logic(df[df['직업'] == job].sort_values(by="전투력_v", ascending=False))
+        st.dataframe(job_df[['순위', '문파', '이름', '전투력', '성장']], use_container_width=True, hide_index=True)
 
     with tabs[4]: # 분석 통계
-        st.subheader("📊 연합 핵심 통계")
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("실제 총원", f"{len(df)}명")
-        c2.metric("통합 전투력", f"{df['전투력_v'].sum():,}")
-        c3.metric("평균 전투력", f"{int(df['전투력_v'].mean()) if len(df)>0 else 0:,}")
-        c4.metric("최고 전투력", f"{df['전투력_v'].max() if len(df)>0 else 0:,}")
+        st.subheader("📊 연합 핵심 지표")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("통합 전투력", f"{df['전투력_v'].sum():,}")
+        c2.metric("평균 전투력", f"{int(df['전투력_v'].mean()):,}")
+        c3.metric("평균 성장률", f"{df['성장_v'].mean():.2f}%")
         st.divider()
         g1, g2 = st.columns(2)
         with g1:
-            fig_pie = px.pie(df, names='문파', values='전투력_v', hole=0.6, title="🏰 문파별 투력 비중", color_discrete_map={"오늘만산다": "#76B900", "오늘만살자": "#007BFF"})
+            fig_pie = px.pie(df, names='문파', values='전투력_v', hole=0.6, title="문파별 투력 비중", color_discrete_map={"오늘만산다": "#76B900", "오늘만살자": "#007BFF"})
             st.plotly_chart(fig_pie, use_container_width=True)
         with g2:
-            job_c = df['직업'].value_counts().reset_index()
-            fig_bar = px.bar(job_c, x='직업', y='count', title="🛡️ 직업 분포", color_discrete_sequence=['#76B900'])
+            fig_bar = px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="직업 분포", color_discrete_sequence=['#76B900'])
             st.plotly_chart(fig_bar, use_container_width=True)
 
     with tabs[5]: # 정산 현황
-        st.subheader("💰 실시간 다이아 분배 및 정산 상태")
-        settlement_df = df[df['전투력_v'] > 1].copy()
-        settlement_df = settlement_df.sort_values(by="분배금_v", ascending=False)
-        settlement_df['분배금_표시'] = settlement_df['분배금_v'].apply(lambda x: f"{x:,} 다이아")
-
+        st.subheader("💰 다이아 분배 랭킹 (전투력 1 제외)")
+        money_rank = add_medal_logic(df[df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
+        money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,} 다이아")
+        
         if is_admin:
-            st.success("✅ 관리자 모드")
-            edited_df = st.data_editor(
-                settlement_df[['이름', '분배금_표시', '정산상태']],
-                column_config={"정산상태": st.column_config.SelectboxColumn("정산상태", options=["미정산", "정산완료"])},
-                disabled=["이름", "분배금_표시"], hide_index=True, use_container_width=True
-            )
-            if st.button("💾 정산 결과 저장"):
+            edited_df = st.data_editor(money_rank[['순위', '이름', '분배금_표시', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True)
+            if st.button("💾 정산 데이터 저장"):
                 status_idx = sheet_header.index("정산상태") + 1
-                for idx, row in edited_df.iterrows():
-                    try:
-                        cell = worksheet.find(row['이름'])
-                        worksheet.update_cell(cell.row, status_idx, row['정산상태'])
-                    except: continue
-                st.toast("저장 완료!")
+                for _, row in edited_df.iterrows():
+                    cell = worksheet.find(row['이름'])
+                    worksheet.update_cell(cell.row, status_idx, row['정산상태'])
                 st.cache_data.clear()
+                st.rerun()
         else:
-            settlement_df['상태'] = settlement_df['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
-            st.dataframe(settlement_df[['문파', '이름', '분배금_표시', '상태']], use_container_width=True, hide_index=True, height=600)
+            money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
+            st.dataframe(money_rank[['순위', '문파', '이름', '분배금_표시', '상태']], use_container_width=True, hide_index=True)
 
 else:
     st.error(f"데이터 로드 실패: {df}")
