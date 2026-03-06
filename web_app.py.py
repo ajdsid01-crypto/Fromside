@@ -7,7 +7,7 @@ import re
 import plotly.express as px
 
 # 1. 🎨 [디자인] NVIDIA 다크 테마 & 개방형 레이아웃
-st.set_page_config(page_title="조협클래식 관제소", layout="wide")
+st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="wide")
 
 st.markdown("""
     <style>
@@ -30,25 +30,30 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 📂 2. 데이터 로드 및 정밀 세척
-current_dir = os.path.dirname(os.path.abspath(__file__))
-credentials_path = os.path.join(current_dir, "credentials.json")
-
-@st.cache_data(ttl=10)
+# 📂 2. 데이터 로드 (보안 설정 적용)
+@st.cache_data(ttl=60) # 1분 간격 갱신으로 최적화
 def load_perfect_alignment_data():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_name(credentials_path, scope)
+        
+        # [핵심 변경] 파일 대신 Streamlit Secrets에 입력한 딕셔너리를 사용합니다.
+        creds_info = st.secrets["gcp_service_account"]
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, scope)
+        
         client = gspread.authorize(creds)
         sheet = client.open("조협오산오살").sheet1
         all_data = sheet.get_all_values()
+        
+        # 데이터가 비어있는지 확인
+        if len(all_data) < 7:
+            return None, "구글 시트의 데이터 형식이 올바르지 않습니다 (최소 7행 이상 필요)."
+
         header, rows = all_data[6], all_data[7:]
         df = pd.DataFrame(rows, columns=header)
         
-        # 🛡️ 빈 행 제거 (인원수 146명 오류 방지)
+        # 🛡️ 빈 행 제거 및 데이터 전처리
         df = df[df['이름'].str.strip() != ""].copy()
         
-        # 🛡️ 특수문자 제거 후 진짜 숫자로 변환 (내부 정렬용)
         def clean_to_int(val):
             if not val: return 0
             clean = re.sub(r'[^0-9.]', '', str(val))
@@ -57,7 +62,6 @@ def load_perfect_alignment_data():
         df['전투력_v'] = df['전투력'].apply(clean_to_int)
         df['누계_v'] = df['누계'].apply(clean_to_int)
         
-        # 성장률 수치 추출
         def get_growth(v):
             match = re.search(r'\(([\d\.]+)\%\)', str(v))
             return float(match.group(1)) if match else 0.0
@@ -69,12 +73,12 @@ def load_perfect_alignment_data():
 
 update_time, result = load_perfect_alignment_data()
 
-# 화면에 보여줄 때 사용할 왼쪽 정렬용 설정
+# 화면 표시용 설정
 column_config = {
     "문파": st.column_config.TextColumn("문파"),
     "이름": st.column_config.TextColumn("이름"),
     "직업": st.column_config.TextColumn("직업"),
-    "전투력": st.column_config.TextColumn("전투력"), # 글자로 취급하여 왼쪽 정렬
+    "전투력": st.column_config.TextColumn("전투력"),
     "성장": st.column_config.TextColumn("성장"),
     "누계": st.column_config.TextColumn("누계"),
 }
@@ -88,7 +92,6 @@ if isinstance(result, pd.DataFrame):
     search_q = st.text_input("🔍 캐릭터명 검색", placeholder="닉네임 입력")
     if search_q:
         res = df[df['이름'].str.contains(search_q, na=False, case=False)].copy()
-        # 표시용 변환
         res['전투력'] = res['전투력_v'].apply(lambda x: f"{x:,}")
         st.dataframe(res[['문파', '이름', '직업', '전투력', '성장']], use_container_width=True, hide_index=True, column_config=column_config)
 
@@ -97,16 +100,14 @@ if isinstance(result, pd.DataFrame):
     tabs = st.tabs(["⚔️ 보스 현황", "🛡️ 연합 전력", "🔥 성장 랭킹", "🏆 직업별 랭킹", "📊 분석 통계", "💰 정산 현황"])
 
     with tabs[0]: # 보스 현황
-        st.subheader("🗓️ 보스 참여 순위 (14회 > 9회 정렬 완벽)")
-        # 1. 숫자로 정렬
+        st.subheader("🗓️ 보스 참여 순위")
         boss_df = df.sort_values(by="누계_v", ascending=False).copy()
-        # 2. 표시할 때만 글자로 변환 (왼쪽 정렬 트릭)
         boss_df['누계'] = boss_df['누계_v'].astype(str)
         st.dataframe(boss_df[['문파', '이름', '14시', '18시', '22시', '누계']], 
                      use_container_width=True, hide_index=True, height=750, column_config=column_config)
 
-    with tabs[1]: # 연합 전력
-        st.subheader("📈 연합 전원 전투력 명단")
+    with tabs[1]: # 문파 투력
+        st.subheader("📈 문파 전투력 명단")
         cp_df = df.sort_values(by="전투력_v", ascending=False).copy()
         cp_df['전투력'] = cp_df['전투력_v'].apply(lambda x: f"{x:,}")
         st.dataframe(cp_df[['문파', '이름', '직업', '전투력', '성장', '카톡']], 
