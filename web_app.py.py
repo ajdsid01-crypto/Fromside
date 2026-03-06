@@ -106,7 +106,7 @@ spreadsheet, worksheet, df, sheet_header = load_all_guild_data()
 # 📊 3. 화면 구성 및 사이드바
 if isinstance(df, pd.DataFrame):
     with st.sidebar:
-        st.markdown("<h2 style='text-align: center; color: #76B900;'>오늘만산다,살자</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; color: #76B900;'></h2>", unsafe_allow_html=True)
         st.divider()
         st.subheader("📊 연합 현황")
         st.metric("총 인원", f"{len(df)}명")
@@ -218,6 +218,7 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error(f"데이터 로드 실패: {df}")
+
 
 
 
