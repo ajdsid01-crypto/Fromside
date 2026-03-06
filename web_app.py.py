@@ -10,11 +10,9 @@ st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="
 
 st.markdown("""
     <style>
-    /* 전체 배경 및 텍스트 고정 */
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
     h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; text-align: left !important; }
     
-    /* 표(DataFrame) 스타일 강제 고정 */
     [data-testid="stDataFrame"] { background-color: #111111 !important; }
     [data-testid="stDataFrame"] div[data-baseweb="table"] div {
         text-align: left !important;
@@ -23,7 +21,6 @@ st.markdown("""
         color: white !important;
     }
 
-    /* 🏆 슬림 MVP 바 스타일 */
     .mvp-bar {
         background: linear-gradient(90deg, #111, #1a1a1a);
         border: 1px solid #76B900;
@@ -31,10 +28,8 @@ st.markdown("""
         border-radius: 8px;
         text-align: center;
         margin-bottom: 20px;
-        box-shadow: 0 0 10px rgba(118, 185, 0, 0.2);
     }
     
-    /* 참여자 명단 박스 */
     .participant-box {
         background-color: #111;
         border-left: 4px solid #76B900;
@@ -48,16 +43,13 @@ st.markdown("""
 
 # 🏆 순위에 따른 메달 부여 함수
 def add_medal_logic(df):
-    # 52행 오류 수정 포인트: 줄 바꿈을 명확히 함
     df = df.reset_index(drop=True)
     df.insert(0, 'Rank', range(1, len(df) + 1))
-    
     def medal_icon(rank):
         if rank == 1: return "🥇 1위"
         elif rank == 2: return "🥈 2위"
         elif rank == 3: return "🥉 3위"
         else: return f"{rank}위"
-    
     df['순위'] = df['Rank'].apply(medal_icon)
     return df.drop(columns=['Rank'])
 
@@ -98,9 +90,8 @@ def load_all_guild_data():
 
 spreadsheet, worksheet, df, sheet_header = load_all_guild_data()
 
-# 📊 3. 메인 화면 구성
 if isinstance(df, pd.DataFrame):
-    # --- 사이드바 영역 ---
+    # --- 사이드바 ---
     with st.sidebar:
         st.markdown("<h2 style='text-align: center; color: #76B900;'>오늘만산다,살자</h2>", unsafe_allow_html=True)
         st.divider()
@@ -126,9 +117,22 @@ if isinstance(df, pd.DataFrame):
                 st.cache_data.clear()
                 st.rerun()
 
-    # --- 메인 탭 ---
+    # --- 메인 영역 ---
     st.title("🛡️ 조협클래식 통합 관리 시스템")
-    tabs = st.tabs(["⚔️ 보스 현황", "🛡️ 문파 전투력", "🔥 성장 랭킹", "🏆 직업별 랭킹", "📊 분석 통계", "💰 정산 현황"])
+    
+    # 🔍 검색창 (여기에 다시 추가했습니다!)
+    search_q = st.text_input("🔍 캐릭터명 검색 (닉네임을 입력하세요)", placeholder="예: 가미가미")
+    if search_q:
+        search_res = df[df['이름'].str.contains(search_q, na=False, case=False)].copy()
+        if not search_res.empty:
+            st.success(f"'{search_q}' 검색 결과입니다.")
+            search_res['전투력_표시'] = search_res['전투력_v'].apply(lambda x: f"{x:,}")
+            st.dataframe(search_res[['문파', '이름', '직업', '전투력_표시', '성장']], use_container_width=True, hide_index=True)
+        else:
+            st.warning("검색 결과가 없습니다.")
+        st.divider()
+
+    tabs = st.tabs(["⚔️ 보스 현황", "🛡️ 연합 전력", "🔥 성장 랭킹", "🏆 직업별 랭킹", "📊 분석 통계", "💰 정산 현황"])
 
     with tabs[0]: # 보스 현황
         max_val = df['누계_v'].max()
@@ -149,8 +153,8 @@ if isinstance(df, pd.DataFrame):
         boss_rank = add_medal_logic(df.sort_values(by="누계_v", ascending=False))
         st.dataframe(boss_rank[['순위', '문파', '이름', '14시', '18시', '22시', '누계']], use_container_width=True, hide_index=True)
 
-    with tabs[1]: # 문파 전투력
-        st.subheader("📈 문파 전투력 순위")
+    with tabs[1]: # 연합 전력
+        st.subheader("📈 연합 전투력 명예의 전당")
         cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
         cp_rank['전투력_표시'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
         st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시', '성장']], use_container_width=True, hide_index=True)
@@ -163,7 +167,7 @@ if isinstance(df, pd.DataFrame):
     with tabs[3]: # 직업별 랭킹
         st.subheader("👑 직업별 명예의 전당")
         job_list = sorted(df['직업'].unique())
-        selected_job = st.selectbox("직업 선택", job_list)
+        selected_job = st.selectbox("조회할 직업을 선택하세요", job_list)
         job_rank = add_medal_logic(df[df['직업'] == selected_job].sort_values(by="전투력_v", ascending=False))
         job_rank['전투력_표시'] = job_rank['전투력_v'].apply(lambda x: f"{x:,}")
         st.dataframe(job_rank[['순위', '문파', '이름', '전투력_표시', '성장']], use_container_width=True, hide_index=True)
@@ -184,13 +188,13 @@ if isinstance(df, pd.DataFrame):
             st.plotly_chart(fig_bar, use_container_width=True)
 
     with tabs[5]: # 정산 현황
-        st.subheader("💰 다이아 분배 랭킹 (미보고자 제외)")
+        st.subheader("💰 다이아 분배 현황")
         money_rank = add_medal_logic(df[df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
         money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,} 다이아")
         
         if is_admin:
             edited_df = st.data_editor(money_rank[['순위', '이름', '분배금_표시', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True)
-            if st.button("💾 정산 데이터 저장"):
+            if st.button("💾 정산 상태 저장"):
                 status_idx = sheet_header.index("정산상태") + 1
                 for _, row in edited_df.iterrows():
                     cell = worksheet.find(row['이름'])
