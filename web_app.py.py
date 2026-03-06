@@ -77,7 +77,7 @@ spreadsheet, worksheet, df, sheet_header = load_full_integrated_data()
 if isinstance(df, pd.DataFrame):
     # --- 사이드바 영역 ---
     with st.sidebar:
-        st.markdown("<h2 style='text-align: center; color: #76B900;'>오늘만산다 오늘만살자</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; color: #76B900;'>조협클래식 강릉3</h2>", unsafe_allow_html=True)
         st.divider()
 
         # 📊 연합 현황 요약
@@ -116,7 +116,7 @@ if isinstance(df, pd.DataFrame):
                 st.rerun()
 
     # --- 메인 영역 ---
-    st.title("🛡️ 조협클래식 통합 관리 시스템")
+    st.title("🛡️오늘만산다/오늘만살자")
     
     # 공통 컬럼 설정 (좌측 정렬 보장)
     column_config = {
@@ -226,5 +226,6 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error(f"데이터 로드 실패: {df}")
+
 
 
