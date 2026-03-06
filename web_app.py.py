@@ -149,8 +149,8 @@ if isinstance(df, pd.DataFrame):
         boss_rank = add_medal_logic(df.sort_values(by="누계_v", ascending=False))
         st.dataframe(boss_rank[['순위', '문파', '이름', '14시', '18시', '22시', '누계']], use_container_width=True, hide_index=True)
 
-    with tabs[1]: # 연합 전력
-        st.subheader("📈 연합 전투력 명예의 전당")
+    with tabs[1]: # 문파 전투력
+        st.subheader("📈 문파 전투력 순위")
         cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
         cp_rank['전투력_표시'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
         st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시', '성장']], use_container_width=True, hide_index=True)
@@ -203,6 +203,7 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error(f"데이터 로드 실패: {df}")
+
 
 
 
