@@ -77,7 +77,7 @@ spreadsheet, worksheet, df, sheet_header = load_full_integrated_data()
 if isinstance(df, pd.DataFrame):
     # --- 사이드바 영역 ---
     with st.sidebar:
-        st.markdown("<h2 style='text-align: center; color: #76B900;'>오늘만산다,살자</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; color: #76B900;'>오늘만산다 오늘만살자</h2>", unsafe_allow_html=True)
         st.divider()
 
         # 📊 연합 현황 요약
@@ -87,7 +87,7 @@ if isinstance(df, pd.DataFrame):
         st.divider()
 
         # 📺 연합 방송 센터 (아이콘 버전)
-        st.subheader("📺 연합 방송 센터")
+        st.subheader("📺 스트리머 채널")
         
         # 가미가미
         c1, c2 = st.columns([1, 4])
@@ -226,4 +226,5 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error(f"데이터 로드 실패: {df}")
+
 
