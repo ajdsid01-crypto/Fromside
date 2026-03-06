@@ -128,7 +128,7 @@ if isinstance(df, pd.DataFrame):
 
     # --- 메인 탭 ---
     st.title("🛡️ 조협클래식 통합 관리 시스템")
-    tabs = st.tabs(["⚔️ 보스 현황", "🛡️ 연합 전력", "🔥 성장 랭킹", "🏆 직업별 랭킹", "📊 분석 통계", "💰 정산 현황"])
+    tabs = st.tabs(["⚔️ 보스 현황", "🛡️ 문파 전투력", "🔥 성장 랭킹", "🏆 직업별 랭킹", "📊 분석 통계", "💰 정산 현황"])
 
     with tabs[0]: # 보스 현황
         max_val = df['누계_v'].max()
@@ -203,6 +203,7 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error(f"데이터 로드 실패: {df}")
+
 
 
 
