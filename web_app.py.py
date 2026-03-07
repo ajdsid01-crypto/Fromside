@@ -22,6 +22,7 @@ st.markdown("""
     
     /* 사이드바 최적화 */
     [data-testid="stSidebar"] > div:first-child { padding-top: 20px !important; }
+    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.8rem !important; }
     
     /* 🛍️ 카드형 거래소 디자인 */
     .market-card {
@@ -32,7 +33,11 @@ st.markdown("""
     .item-info { flex: 3; }
     .item-name { color: #FFF; font-size: 1.25rem; font-weight: bold; }
     .item-price { color: #76B900; font-size: 1.15rem; font-weight: 800; }
-    
+    .status-tag { 
+        display: inline-block; padding: 4px 10px; border-radius: 6px; 
+        font-size: 0.75rem; font-weight: bold; border: 1px solid #76B900; color: #76B900;
+    }
+
     .mvp-bar {
         background: linear-gradient(90deg, #111, #1a1a1a);
         border: 1px solid #76B900; padding: 10px 20px; border-radius: 8px; text-align: center; margin-bottom: 20px;
@@ -65,9 +70,11 @@ def load_all_guild_data():
         client = gspread.authorize(creds)
         spreadsheet = client.open("조협오산오살")
         
+        # 메인 시트 로드
         sheet = spreadsheet.sheet1
         all_data = sheet.get_all_values()
         
+        # '이름' 헤더 자동 검색
         header_idx = 0
         for i, row in enumerate(all_data):
             if "이름" in row:
@@ -88,7 +95,7 @@ def load_all_guild_data():
             clean = re.sub(r'[^0-9]', '', str(val))
             return int(clean) if clean else 0
 
-        # 🚨 [성장률 복구] %수치 내림차순을 위한 정밀 파싱
+        # 🚨 [성장률 복구] %수치 내림차순 및 형식 변경 (2.5% (▲5,000))
         def parse_growth(val):
             val = str(val)
             pct_match = re.search(r'([\d\.]+)(?=%)', val)
@@ -153,10 +160,8 @@ if isinstance(df, pd.DataFrame):
         c1.metric("인원", f"{len(df)}명"); c2.metric("총투력", f"{df['전투력_v'].sum():,}")
         
         st.divider()
-        youtube_links = [("가미가미 TV", "https://www.youtube.com/@gamigami706", "youtube-play"),
-                         ("왕코 방송국", "https://www.youtube.com/@스트리머왕코", "controller"),
-                         ("아이엠솔이", "https://www.youtube.com/@아이엠솔이", "microphone")]
-        for name, url, icon in youtube_links:
+        # 유튜브 링크 복구
+        for name, url, icon in [("가미가미 TV", "https://www.youtube.com/@gamigami706", "youtube-play"), ("왕코 방송국", "https://www.youtube.com/@스트리머왕코", "controller"), ("아이엠솔이", "https://www.youtube.com/@아이엠솔이", "microphone")]:
             y1, y2 = st.columns([1, 4])
             with y1: st.image(f"https://img.icons8.com/neon/96/{icon}.png", width=22)
             with y2: st.link_button(name, url, use_container_width=True)
@@ -169,36 +174,40 @@ if isinstance(df, pd.DataFrame):
     st.title("🛡️ Chosun Swordsman Classic")
     tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
 
-    with tabs[0]: # 보탐
+    # ⚔️ 보탐 현황
+    with tabs[0]:
         boss_vis = df.copy()
         for col in ['14시', '18시', '22시']: 
             if col in boss_vis.columns: boss_vis[col] = boss_vis[col].apply(lambda x: "✅" if str(x).strip().lower() in ['o', 'ㅇ', 'v'] else "──")
         st.dataframe(add_medal_logic(boss_vis.sort_values(by="누계_v", ascending=False))[['순위', '문파', '이름', '14시', '18시', '22시', '누계_v']], use_container_width=True, hide_index=True, height=700)
 
-    with tabs[1]: # 🛡️ 투력 현황 (좌측 정렬 적용)
+    # 🛡️ 투력 현황 (좌측 정렬 적용)
+    with tabs[1]:
         cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
         st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_v']], use_container_width=True, hide_index=True, height=700)
 
-    with tabs[2]: # 🔥 성장 랭킹 (내림차순 & 형식 변경)
+    # 🔥 성장 랭킹 (성장률 중심 복구)
+    with tabs[2]:
         growth_df = add_medal_logic(df.sort_values(by="성장_v", ascending=False))
         st.dataframe(growth_df[['순위', '문파', '이름', '성장_표시', '전투력_v']], use_container_width=True, hide_index=True, height=700)
 
-    with tabs[3]: # 🏆 직업별 랭킹 (좌측 정렬 적용)
+    # 🏆 직업별 랭킹 (검색 필터 유지 & 좌측 정렬)
+    with tabs[3]:
         selected_job = st.selectbox("직업 선택", sorted(df['직업'].unique()))
         job_df = add_medal_logic(df[df['직업'] == selected_job].sort_values(by="전투력_v", ascending=False))
         st.dataframe(job_df[['순위', '문파', '이름', '전투력_v']], use_container_width=True, hide_index=True, height=600)
 
-    with tabs[4]: # 🛍️ 문파 거래소 (입력창 복구)
+    # 🛍️ 문파 거래소 (입력창 복구)
+    with tabs[4]:
         m_col1, m_col2 = st.columns([1, 2])
         with m_col1:
             st.markdown("### 📝 아이템 등록")
             with st.form("market_form", clear_on_submit=True):
                 m_seller = st.text_input("판매자 닉네임")
                 m_item = st.text_input("아이템 이름")
-                m_price = st.text_input("판매 가격")
-                if st.form_submit_button("등록하기"):
-                    if market_worksheet:
-                        market_worksheet.append_row([m_seller, m_item, m_price, "판매중"]); st.cache_data.clear(); st.rerun()
+                m_price = st.text_input("가격")
+                if st.form_submit_button("등록하기") and market_worksheet:
+                    market_worksheet.append_row([m_seller, m_item, m_price, "판매중"]); st.cache_data.clear(); st.rerun()
         with m_col2:
             st.markdown("### 📦 매물 목록")
             if not market_df.empty:
@@ -206,7 +215,8 @@ if isinstance(df, pd.DataFrame):
                     st.markdown(f'<div class="market-card"><div class="item-info"><div class="item-name">{row["아이템이름"]}</div><div class="item-seller">판매자 : {row["판매자"]}</div></div><div class="status-area"><div class="status-tag">판매중</div><div class="item-price">{row["가격"]}</div></div></div>', unsafe_allow_html=True)
                     if st.button(f"🤝 거래완료", key=f"done_{idx}"): market_worksheet.update_cell(idx + 2, 4, "판매완료"); st.cache_data.clear(); st.rerun()
 
-    with tabs[5]: # 📊 분석 통계 (지표 복구)
+    # 📊 분석 통계 (지표 복구)
+    with tabs[5]:
         st.subheader("📊 연합 실시간 분석")
         sc1, sc2, sc3, sc4 = st.columns(4)
         sc1.metric("통합 전투력", f"{df['전투력_v'].sum():,}")
@@ -218,7 +228,8 @@ if isinstance(df, pd.DataFrame):
         with g1: st.plotly_chart(px.pie(df, names='문파', values='전투력_v', hole=0.5, title="🏰 문파별 투력 점유율", color_discrete_sequence=['#76B900', '#007BFF']), use_container_width=True)
         with g2: st.plotly_chart(px.bar(df['직업'].value_counts().reset_index(), x='index', y='직업', title="⚔️ 직업별 인원 분포").update_traces(marker_color='#76B900'), use_container_width=True)
 
-    with tabs[6]: # 💰 정산 탭 (아이콘 및 좌측 정렬 복구)
+    # 💰 정산 현황 (이미지 및 좌측 정렬 복구)
+    with tabs[6]:
         elite_df = df[(df['전투력_v'] > 1) & (df['누계_v'] > 0)].copy()
         st.markdown(f"### 💰 정산 대시보드 <img src='https://img.icons8.com/neon/96/money-transfer.png' width='40' style='vertical-align:middle;'>", unsafe_allow_html=True)
         st.metric("정예 총 분배금", f"{elite_df['분배금_v'].sum():,} 💎")
@@ -227,6 +238,7 @@ if isinstance(df, pd.DataFrame):
         st.dataframe(money_rank[['순위', '이름', '분배금_v', '상태']], use_container_width=True, hide_index=True, height=700)
 
 else: st.error("데이터 로드 실패")
+
 
 
 
