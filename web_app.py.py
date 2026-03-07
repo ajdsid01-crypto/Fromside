@@ -199,7 +199,7 @@ if isinstance(df, pd.DataFrame):
                 st.rerun()
 
     # --- 메인 영역 ---
-    st.title("🛡️ 조선협객전 문파 관리")
+    st.title("🛡️ 조협클래식 오늘만산다/오늘만살자")
     
     # 🔍 검색창
     search_q = st.text_input("🔍 문파원 검색", placeholder="닉네임 입력")
@@ -282,6 +282,7 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error("데이터 로드 실패")
+
 
 
 
