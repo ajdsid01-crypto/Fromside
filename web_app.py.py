@@ -167,8 +167,8 @@ if isinstance(df, pd.DataFrame):
         sc2.metric("총투력", f"{df['전투력_v'].sum():,}")
         st.divider()
         
-        youtube_links = [("가미가미 TV", "https://www.youtube.com/@gamigami706", "youtube-play"),
-                         ("왕코 방송국", "https://www.youtube.com/@스트리머왕코", "controller"),
+        youtube_links = [("가미가미", "https://www.youtube.com/@gamigami706", "youtube-play"),
+                         ("스트리머왕코", "https://www.youtube.com/@스트리머왕코", "controller"),
                          ("아이엠솔이", "https://www.youtube.com/@아이엠솔이", "microphone")]
         for name, url, icon in youtube_links:
             y1, y2 = st.columns([1, 4])
@@ -184,7 +184,7 @@ if isinstance(df, pd.DataFrame):
                 st.rerun()
 
     # --- 메인 영역 ---
-    st.title("🛡️ COMMAND CENTER")
+    st.title("🛡️ Chosun Swordsman Classic")
     
     search_q = st.text_input("🔍 연합원 검색", placeholder="닉네임을 입력하세요")
     if search_q:
@@ -277,6 +277,7 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error("데이터 로드 실패")
+
 
 
 
