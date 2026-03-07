@@ -6,14 +6,16 @@ import re
 import plotly.express as px
 import streamlit.components.v1 as components
 
-# 1. 🎨 [디자인] NVIDIA 다크 테마 및 레이아웃 설정
+# 1. 🎨 [디자인] NVIDIA 프리미엄 다크 테마 설정
 st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="wide")
 
 st.markdown("""
     <style>
+    /* 전체 배경 및 텍스트 고정 */
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
     h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; text-align: left !important; }
     
+    /* 표(DataFrame) 스타일 강제 고정 */
     [data-testid="stDataFrame"] { background-color: #111111 !important; }
     div[data-testid="stDataFrame"] div[data-baseweb="table"] div {
         background-color: #111111 !important;
@@ -29,8 +31,10 @@ st.markdown("""
         border-radius: 8px;
         text-align: center;
         margin-bottom: 20px;
+        box-shadow: 0 0 10px rgba(118, 185, 0, 0.2);
     }
     
+    /* 참여자 명단 박스 */
     .participant-box {
         background-color: #111;
         border-left: 4px solid #76B900;
@@ -100,16 +104,49 @@ spreadsheet, worksheet, df, sheet_header = load_all_guild_data()
 if isinstance(df, pd.DataFrame):
     # --- 사이드바 영역 ---
     with st.sidebar:
-        # 🕒 1초마다 줄어드는 실시간 자바스크립트 타이머 (NVIDIA 스타일)
+        # 💎 고급형 실시간 자바스크립트 타이머 (NVIDIA 스타일)
         timer_html = """
-        <div id="boss-timer-root" style="background-color: #111; border: 1px solid #76B900; padding: 15px; border-radius: 10px; text-align: center; color: white; font-family: sans-serif;">
-            <div style="font-size: 14px; color: #888; margin-bottom: 5px;"></div>
-            <div id="target-label" style="font-size: 18px; color: #76B900; font-weight: bold;">--:--</div>
-            <div id="countdown-val" style="font-size: 32px; font-weight: bold; font-family: 'Courier New', monospace; margin-top: 5px;">00:00:00</div>
+        <div id="boss-timer-premium" style="
+            background: linear-gradient(135deg, #0a0a0a 0%, #151515 100%);
+            border: 1px solid rgba(118, 185, 0, 0.3);
+            border-top: 3px solid #76B900;
+            padding: 20px 15px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            font-family: sans-serif;
+        ">
+            <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 12px;">
+                <span style="width: 8px; height: 8px; background-color: #ff4b4b; border-radius: 50%; display: inline-block; animation: pulse 1.5s infinite;"></span>
+                <span style="font-size: 11px; font-weight: bold; color: #ff4b4b; letter-spacing: 1px; text-transform: uppercase;">Live Boss Radar</span>
+            </div>
+            
+            <div id="target-label" style="font-size: 14px; color: #888; margin-bottom: 4px;">--:-- NEXT BOSS</div>
+            <div id="countdown-val" style="
+                font-size: 34px; 
+                font-weight: 800; 
+                color: #76B900; 
+                font-family: 'Courier New', monospace;
+                letter-spacing: -1px;
+                text-shadow: 0 0 15px rgba(118, 185, 0, 0.4);
+            ">00:00:00</div>
+            
+            <div style="margin-top: 15px; font-size: 10px; color: #444; border-top: 1px solid #222; padding-top: 10px;">
+                SERVER TIME (KST)
+            </div>
         </div>
+
+        <style>
+            @keyframes pulse {
+                0% { opacity: 1; transform: scale(1); }
+                50% { opacity: 0.4; transform: scale(1.2); }
+                100% { opacity: 1; transform: scale(1); }
+            }
+        </style>
 
         <script>
         function updateTimer() {
+            // 한국 시간(KST) 강제 설정
             const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"}));
             const bossTimes = [14, 18, 20];
             let target = null;
@@ -134,15 +171,16 @@ if isinstance(df, pd.DataFrame):
             const m = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0');
             const s = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
 
-            document.getElementById('target-label').innerText = target.getHours() + ":00 보스 젠타임";
+            document.getElementById('target-label').innerText = target.getHours() + ":00 NEXT BOSS";
             document.getElementById('countdown-val').innerText = h + ":" + m + ":" + s;
         }
         setInterval(updateTimer, 1000);
         updateTimer();
         </script>
         """
-        st.markdown("<div style='text-align:center;'><img src='https://img.icons8.com/neon/150/shield.png' width='60'></div>", unsafe_allow_html=True)
-        components.html(timer_html, height=140)
+        st.markdown("<div style='text-align:center; padding-top:10px;'><img src='https://img.icons8.com/neon/150/shield.png' width='55'></div>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align:center; color:#76B900; font-weight:bold; font-size:18px; margin-bottom:15px;'>오늘만산다,살자</p>", unsafe_allow_html=True)
+        components.html(timer_html, height=200)
         st.divider()
         
         st.subheader("📊 연합 현황")
@@ -251,6 +289,7 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error("데이터 로드 실패")
+
 
 
 
