@@ -97,6 +97,7 @@ def load_all_guild_data():
             return (float(percent.group(1)) if percent else 0.0, f"{percent.group(1)}% ({value.group(1)})" if percent and value else "-")
 
         df['성장_v'], df['성장'] = zip(*df['성장'].apply(parse_growth))
+        # 🚨 여기서 에러 방지: 데이터프레임에 '정산상태' 열이 없으면 기본값으로 채워 넣습니다.
         df['정산상태'] = df['정산상태'].apply(lambda x: "정산완료" if str(x).strip() == "정산완료" else "미정산") if '정산상태' in df.columns else "미정산"
         df['14_p'] = df['14시'].apply(lambda x: str(x).strip().lower() in ['o', 'ㅇ', 'v'])
         df['18_p'] = df['18시'].apply(lambda x: str(x).strip().lower() in ['o', 'ㅇ', 'v'])
@@ -171,7 +172,7 @@ if isinstance(df, pd.DataFrame):
         filtered_df = df.copy()
 
     # ==========================================
-    # 🚨 [신규 추가] 캐릭터 검색 결과 '종합 프로필 카드' 표시 영역
+    # 🧑‍🎤 캐릭터 검색 결과 '종합 프로필 카드' 표시 영역
     # ==========================================
     if search_query and not filtered_df.empty:
         st.markdown("#### 🧑‍🎤 캐릭터 통합 프로필")
@@ -206,7 +207,6 @@ if isinstance(df, pd.DataFrame):
         st.divider()
     elif search_query and filtered_df.empty:
         st.warning(f"'{search_query}'에 해당하는 길드원을 찾을 수 없습니다.")
-    # ==========================================
 
     tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
 
@@ -240,7 +240,7 @@ if isinstance(df, pd.DataFrame):
         display_custom_table(boss_vis, ['순위', '문파', '이름', '누계_v', '14시', '18시', '22시'], ['순위', '문파', '이름', '누계', '14시', '18시', '22시'])
 
         # ==========================================
-        # 🚨 [신규 추가] 관리자 전용 누계 초기화 로직
+        # 🚨 관리자 전용 누계 초기화 로직
         # ==========================================
         if st.session_state.authenticated:
             st.markdown("<br>", unsafe_allow_html=True)
@@ -255,21 +255,16 @@ if isinstance(df, pd.DataFrame):
                 if st.button("🔄 누계 0으로 초기화", disabled=not confirm_reset, use_container_width=True):
                     with st.spinner("데이터 초기화 중..."):
                         try:
-                            # 1. 시트 헤더에서 '누계' 컬럼의 위치 파악 (1-based index)
                             col_idx = sheet_header.index('누계') + 1
-                            # 2. 업데이트할 셀 범위 설정 (8행부터 시작)
                             cell_list = worksheet.range(8, col_idx, 7 + len(df), col_idx)
-                            # 3. 셀 값 0으로 변경
                             for cell in cell_list:
                                 cell.value = '0'
-                            # 4. 일괄 업데이트 (속도 최적화)
                             worksheet.update_cells(cell_list)
                             st.cache_data.clear()
                             st.success("✅ 모든 인원의 누계가 성공적으로 초기화되었습니다.")
                             st.rerun()
                         except Exception as e:
                             st.error(f"초기화 중 오류가 발생했습니다: {e}")
-        # ==========================================
 
     with tabs[1]: # 🛡️ 투력 현황
         cp_rank = add_medal_logic(filtered_df.sort_values(by="전투력_v", ascending=False))
@@ -302,23 +297,64 @@ if isinstance(df, pd.DataFrame):
                         except:
                             st.error("삭제 중 오류가 발생했습니다. 수동으로 시트를 확인해주세요.")
 
+    # ==========================================
+    # 🚨 정산 현황 탭 전면 개편 (실시간 연동 & 에러 방지)
+    # ==========================================
     with tabs[6]: # 💰 정산 현황
-        income, paid = df['분배금_v'].sum(), df[df['정산상태'] == "정산완료"]['분배금_v'].sum()
-        m1, m2, m3 = st.columns(3)
-        m1.metric("총 분배금", f"{income:,}"); m2.metric("정산 완료", f"{paid:,}"); m3.metric("남은 금액", f"{income-paid:,}")
         money_rank = add_medal_logic(filtered_df[filtered_df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
         money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,}")
-        money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
         
         if st.session_state.authenticated:
-            st.info("🔓 관리자 모드 활성화")
-            edited = st.data_editor(money_rank[['순위', '이름', '분배금_표시', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True)
-            if st.button("💾 정산 상태 저장"):
-                idx = sheet_header.index("정산상태") + 1
-                for _, row in edited.iterrows():
-                    cell = worksheet.find(row['이름']); worksheet.update_cell(cell.row, idx, row['정산상태'])
-                st.cache_data.clear(); st.success("저장되었습니다!"); st.rerun()
-        else:
+            st.info("🔓 관리자 모드 활성화 : 아래 표에서 상태를 변경하면 위 금액이 실시간으로 변합니다. 최종 확인 후 '저장'을 누르세요.")
+            
+            # 표 에디터 렌더링
+            edited = st.data_editor(
+                money_rank[['순위', '이름', '분배금_표시', '정산상태']], 
+                column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, 
+                disabled=["순위", "이름", "분배금_표시"], 
+                hide_index=True, 
+                use_container_width=True
+            )
+            
+            # 실시간 연동 로직
+            income = df['분배금_v'].sum()
+            merged_for_calc = pd.merge(edited, money_rank[['이름', '분배금_v']], on='이름')
+            paid = merged_for_calc[merged_for_calc['정산상태'] == "정산완료"]['분배금_v'].sum()
+            
+            # 상단 지표 표시
+            m1, m2, m3 = st.columns(3)
+            m1.metric("총 분배금", f"{income:,}")
+            m2.metric("정산 완료", f"{paid:,}")
+            m3.metric("남은 금액", f"{income-paid:,}")
+
+            if st.button("💾 정산 상태 구글 시트에 최종 저장"):
+                with st.spinner("구글 시트에 데이터를 저장하고 있습니다..."):
+                    try:
+                        idx = sheet_header.index("정산상태") + 1
+                        for _, row in edited.iterrows():
+                            # 변경된 사항만 업데이트하여 API 호출 한도 방어
+                            original_status = money_rank[money_rank['이름'] == row['이름']]['정산상태'].values[0]
+                            if original_status != row['정산상태']:
+                                cell = worksheet.find(row['이름'])
+                                worksheet.update_cell(cell.row, idx, row['정산상태'])
+                                
+                        st.cache_data.clear()
+                        st.success("성공적으로 저장되었습니다!")
+                        st.rerun()
+                        
+                    except ValueError:
+                        st.error("❌ 오류: 구글 시트 7번째 줄(헤더)에 **'정산상태'**라는 이름의 열이 없습니다. 시트의 열 이름을 띄어쓰기 없이 정확히 일치시켜 주세요.")
+                    except Exception as e:
+                        st.error(f"저장 중 알 수 없는 오류가 발생했습니다: {e}")
+
+        else: # 일반 길드원 조회 모드
+            income, paid = df['분배금_v'].sum(), df[df['정산상태'] == "정산완료"]['분배금_v'].sum()
+            m1, m2, m3 = st.columns(3)
+            m1.metric("총 분배금", f"{income:,}")
+            m2.metric("정산 완료", f"{paid:,}")
+            m3.metric("남은 금액", f"{income-paid:,}")
+            
+            money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
             display_custom_table(money_rank, ['순위', '문파', '이름', '분배금_표시', '상태'], ['순위', '문파', '이름', '분배금', '상태'])
 
     with tabs[2]: # 🔥 성장 랭킹
@@ -342,5 +378,3 @@ if isinstance(df, pd.DataFrame):
         with g2: st.plotly_chart(px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포"), use_container_width=True)
 
 else: st.error("데이터 로드 실패")
-
-
