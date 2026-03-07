@@ -15,12 +15,12 @@ st.markdown("""
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
     h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; }
     
-    /* 사이드바 최적화 */
+    /* 사이드바 여백 및 정렬 최적화 */
     [data-testid="stSidebar"] > div:first-child { padding-top: 20px !important; }
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.8rem !important; }
     .stDivider { margin: 0.8rem 0 !important; }
     
-    /* 🚨 표 좌측 정렬 강제 (HTML 테이블용) */
+    /* 🚨 표 내부 데이터 좌측 정렬 강제 (HTML 테이블용) */
     .custom-table {
         width: 100%; border-collapse: collapse; color: white; background-color: #111;
         border-radius: 10px; overflow: hidden; margin-top: 10px;
@@ -110,14 +110,17 @@ spreadsheet, worksheet, df, sheet_header, market_worksheet, market_df = load_all
 if isinstance(df, pd.DataFrame):
     with st.sidebar:
         st.markdown("<div style='text-align:center; padding-bottom:10px;'><img src='https://img.icons8.com/neon/150/shield.png' width='75'></div>", unsafe_allow_html=True)
+        
+        # 🚨 [해결 1] 타이머 상단에 "NEXT BOSS RADAR" 글자 복구
         timer_html = """
         <div style="background:linear-gradient(135deg,#151515,#0a0a0a); border:1px solid #76B90066; padding:15px; border-radius:10px; text-align:center;">
+            <div style="font-size:11px; color:#888; font-weight:bold; margin-bottom:5px;">NEXT BOSS RADAR</div>
             <div id="sidebar-timer" style="font-size:32px; font-weight:900; color:#76B900; font-family:monospace;">00:00:00</div>
         </div>
         <script>
         function up(){
             const n=new Date(new Date().toLocaleString("en-US",{timeZone:"Asia/Seoul"}));
-            const b=[14,18,20];let t=null;
+            const b=[14,18,22];let t=null;
             for(let h of b){let x=new Date(n);x.setHours(h,0,0,0);if(n<x){t=x;break;}}
             if(!t){t=new Date(n);t.setDate(n.getDate()+1);t.setHours(14,0,0,0);}
             const d=t-n;
@@ -127,6 +130,7 @@ if isinstance(df, pd.DataFrame):
         </script>
         """
         components.html(timer_html, height=120)
+        
         if st.button("🔄 최신 데이터 불러오기", use_container_width=True):
             st.cache_data.clear(); st.rerun()
         st.divider()
@@ -147,7 +151,7 @@ if isinstance(df, pd.DataFrame):
     st.title("🛡️ COMMAND CENTER")
     tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
 
-    # 🚨 표 출력용 HTML 변환 함수 (좌측 정렬 강제)
+    # 표 출력용 HTML 변환 함수
     def display_custom_table(dataframe, columns_to_show, column_names):
         df_display = dataframe[columns_to_show].copy()
         df_display.columns = column_names
@@ -167,7 +171,7 @@ if isinstance(df, pd.DataFrame):
             mvps = df[df['누계_v'] == max_val]['이름'].tolist()
             st.markdown(f"<div class='mvp-bar'><span style='color:#76B900; font-weight:bold;'>🏆 MVP : </span>{', '.join(mvps)}</div>", unsafe_allow_html=True)
         p_cols = st.columns(3)
-        for i, (t_name, p_col) in enumerate([("14시", "14_p"), ("18시", "18_p"), ("20시", "22_p")]):
+        for i, (t_name, p_col) in enumerate([("14시", "14_p"), ("18시", "18_p"), ("22시", "22_p")]):
             with p_cols[i]:
                 names = df[df[p_col]]['이름'].tolist()
                 st.markdown(f"#### 🕒 {t_name}")
@@ -216,9 +220,13 @@ if isinstance(df, pd.DataFrame):
     with tabs[6]: # 💰 정산 현황
         income, paid = df['분배금_v'].sum(), df[df['정산상태'] == "정산완료"]['분배금_v'].sum()
         m1, m2, m3 = st.columns(3)
-        m1.metric("총 분배금", f"{income:,}"); m2.metric("정산 완료", f"{paid:,}"); m3.metric("미정산", f"{income-paid:,}")
+        m1.metric("총 분배금", f"{income:,}"); m2.metric("정산 완료", f"{paid:,}"); m3.metric("남은 금액", f"{income-paid:,}")
         money_rank = add_medal_logic(df[df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
         money_rank['분배금'] = money_rank['분배금_v'].apply(lambda x: f"{x:,}")
+        
+        # 🚨 [해결 2] 정산 현황 상태에 이모티콘(✅, ⏳) 복구
+        money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
+        
         if is_admin:
             edited = st.data_editor(money_rank[['순위', '이름', '분배금', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금"], hide_index=True, use_container_width=True)
             if st.button("💾 상태 저장"):
@@ -227,7 +235,7 @@ if isinstance(df, pd.DataFrame):
                     cell = worksheet.find(row['이름']); worksheet.update_cell(cell.row, idx, row['정산상태'])
                 st.cache_data.clear(); st.rerun()
         else:
-            display_custom_table(money_rank, ['순위', '문파', '이름', '분배금', '정산상태'], ['순위', '문파', '이름', '분배금', '상태'])
+            display_custom_table(money_rank, ['순위', '문파', '이름', '분배금', '상태'], ['순위', '문파', '이름', '분배금', '상태'])
 
     with tabs[3]: # 🏆 직업별 랭킹
         job_list = sorted(df['직업'].unique())
