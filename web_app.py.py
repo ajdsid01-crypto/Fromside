@@ -118,7 +118,7 @@ if isinstance(df, pd.DataFrame):
         st.markdown("""
             <div style="text-align: center; padding-bottom: 10px;">
                 <img src="https://img.icons8.com/neon/150/shield.png" width="80">
-                <h2 style='color: #76B900; margin-top: 10px; margin-bottom: 0px;'>오늘만산다/오늘만살자</h2>
+                <h2 style='color: #76B900; margin-top: 10px; margin-bottom: 0px;'></h2>
                 <p style='color: #555; font-size: 11px; letter-spacing: 1px;'>ALLIANCE HQ</p>
                 <div style="display: inline-block; padding: 2px 10px; background-color: #1a1a1a; border: 1px solid #76B900; border-radius: 15px; margin-top: 5px;">
                     <span style="color: #76B900; font-size: 10px; font-weight: bold;">● SYSTEM ONLINE</span>
@@ -238,5 +238,6 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error(f"데이터 로드 실패: {df}")
+
 
 
