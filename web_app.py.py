@@ -121,7 +121,7 @@ if isinstance(df, pd.DataFrame):
         st.markdown("""
             <div class="sidebar-logo">
                 <img src="https://img.icons8.com/neon/150/shield.png" width="70">
-                <h2 style='color: #76B900; margin-top: 10px; margin-bottom: 0px;'>오늘만산다,살자</h2>
+                <h2 style='color: #76B900; margin-top: 10px; margin-bottom: 0px;'></h2>
                 <div style="display: inline-block; padding: 2px 8px; background-color: #1a1a1a; border: 1px solid #76B900; border-radius: 12px; margin-top: 5px;">
                     <span style="color: #76B900; font-size: 10px; font-weight: bold;">● ALLIANCE ONLINE</span>
                 </div>
@@ -166,7 +166,7 @@ if isinstance(df, pd.DataFrame):
             st.dataframe(search_res[['문파', '이름', '직업', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True)
         st.divider()
 
-    tabs = st.tabs(["⚔️ 보스 현황", "🛡️ 연합 전력", "🔥 성장 랭킹", "🏆 직업별 랭킹", "📊 분석 통계", "💰 정산 현황"])
+    tabs = st.tabs(["⚔️ 보스 현황", "🛡️ 문파 ", "🔥 성장 랭킹", "🏆 직업별 랭킹", "📊 분석 통계", "💰 정산 현황"])
 
     with tabs[0]: # ⚔️ 보스 현황 (시각화 강화)
         max_val = df['누계_v'].max()
@@ -260,6 +260,7 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error(f"데이터 로드 실패: {df}")
+
 
 
 
