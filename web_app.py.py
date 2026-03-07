@@ -54,10 +54,12 @@ st.markdown("""
     /* 버튼 스타일 */
     .stButton>button { width: 100%; border-radius: 6px; font-size: 0.85rem !important; height: 35px; }
 
-    /* 표 스타일 */
+    /* 표 스타일 - 모든 셀 좌측 정렬 강제 */
     [data-testid="stDataFrame"] { background-color: #111111 !important; }
     div[data-testid="stDataFrame"] div[data-baseweb="table"] div {
-        background-color: #111111 !important; color: white !important; text-align: left !important;
+        background-color: #111111 !important; color: white !important; 
+        text-align: left !important; justify-content: flex-start !important;
+        padding-left: 10px !important;
     }
 
     .mvp-bar {
@@ -92,14 +94,12 @@ def load_all_guild_data():
         client = gspread.authorize(creds)
         spreadsheet = client.open("조협오산오살")
         
-        # 메인 시트
         sheet = spreadsheet.sheet1
         all_data = sheet.get_all_values()
         header, rows = all_data[6], all_data[7:]
         df = pd.DataFrame(rows, columns=header)
         df = df[df['이름'].str.strip() != ""].copy()
         
-        # 거래소 시트
         market_sheet = spreadsheet.worksheet("거래소")
         m_values = market_sheet.get_all_values()
         if len(m_values) > 1:
@@ -107,7 +107,6 @@ def load_all_guild_data():
         else:
             market_df = pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
 
-        # 숫자 및 성장률 데이터 정제
         def to_int(val):
             clean = re.sub(r'[^0-9]', '', str(val))
             return int(clean) if clean else 0
@@ -145,7 +144,6 @@ if isinstance(df, pd.DataFrame):
     with st.sidebar:
         st.markdown("<div style='text-align:center; padding-bottom:10px;'><img src='https://img.icons8.com/neon/150/shield.png' width='75'></div>", unsafe_allow_html=True)
         
-        # 보스 타이머
         timer_html = """
         <div style="background:linear-gradient(135deg,#151515,#0a0a0a); border:1px solid #76B90066; padding:15px; border-radius:10px; text-align:center;">
             <div style="font-size:11px; color:#888; font-weight:bold; margin-bottom:5px;">NEXT BOSS RADAR</div>
@@ -196,6 +194,9 @@ if isinstance(df, pd.DataFrame):
 
     TABLE_HEIGHT = 700 
 
+    # 🚨 좌측 정렬 공통 설정
+    LEFT_ALIGN_NUM = {"alignment": "left"}
+
     with tabs[0]: # ⚔️ 보스 현황
         max_val = df['누계_v'].max()
         if max_val > 0:
@@ -211,7 +212,11 @@ if isinstance(df, pd.DataFrame):
         st.divider()
         boss_vis = df.copy()
         for col in ['14시', '18시', '22시']: boss_vis[col] = boss_vis[col].apply(lambda x: "✅" if str(x).strip().lower() in ['o', 'ㅇ', 'v'] else "──")
-        st.dataframe(add_medal_logic(boss_vis.sort_values(by="누계_v", ascending=False))[['순위', '문파', '이름', '14시', '18시', '22시', '누계_v']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
+        st.dataframe(
+            add_medal_logic(boss_vis.sort_values(by="누계_v", ascending=False))[['순위', '문파', '이름', '14시', '18시', '22시', '누계_v']], 
+            use_container_width=True, hide_index=True, height=TABLE_HEIGHT,
+            column_config={"누계_v": st.column_config.NumberColumn("누계", alignment="left")}
+        )
 
     with tabs[1]: # 🛡️ 투력 현황
         cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
@@ -229,7 +234,7 @@ if isinstance(df, pd.DataFrame):
         job_rank['전투력_표시'] = job_rank['전투력_v'].apply(lambda x: f"{x:,}")
         st.dataframe(job_rank[['순위', '문파', '이름', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
-    with tabs[4]: # 🛍️ 문파 거래소 (자율형)
+    with tabs[4]: # 🛍️ 문파 거래소
         m_col1, m_col2 = st.columns([1, 2])
         with m_col1:
             with st.form("market_form", clear_on_submit=True):
@@ -240,8 +245,7 @@ if isinstance(df, pd.DataFrame):
                     if market_worksheet:
                         market_worksheet.append_row([m_seller, m_item, m_price, "판매중"])
                         st.success("등록되었습니다!")
-                        st.cache_data.clear()
-                        st.rerun()
+                        st.cache_data.clear(); st.rerun()
         with m_col2:
             if not market_df.empty:
                 for idx, row in market_df.iterrows():
@@ -249,29 +253,12 @@ if isinstance(df, pd.DataFrame):
                     card_class = "market-card sold-out-card" if is_sold else "market-card"
                     status_text = "판매완료" if is_sold else "판매중"
                     tag_class = "status-tag status-tag-sold" if is_sold else "status-tag"
-                    
-                    st.markdown(f"""
-                        <div class="{card_class}">
-                            <div class="item-info">
-                                <div class="item-name">{row['아이템이름']}</div>
-                                <div class="item-price">{row['가격']}</div>
-                                <div class="item-seller">판매자 : {row['판매자']}</div>
-                            </div>
-                            <div class="status-area"><div class="{tag_class}">{status_text}</div></div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
+                    st.markdown(f"""<div class="{card_class}"><div class="item-info"><div class="item-name">{row['아이템이름']}</div><div class="item-price">{row['가격']}</div><div class="item-seller">판매자 : {row['판매자']}</div></div><div class="status-area"><div class="{tag_class}">{status_text}</div></div></div>""", unsafe_allow_html=True)
                     b_c1, b_c2 = st.columns([1, 1])
-                    if not is_sold:
-                        if b_c1.button(f"🤝 거래완료", key=f"done_{idx}"):
-                            market_worksheet.update_cell(idx + 2, 4, "판매완료")
-                            st.cache_data.clear()
-                            st.rerun()
-                    if is_admin:
-                        if b_c2.button(f"🗑️ 매물삭제", key=f"del_{idx}"):
-                            market_worksheet.delete_rows(idx + 2)
-                            st.cache_data.clear()
-                            st.rerun()
+                    if not is_sold and b_c1.button(f"🤝 거래완료", key=f"done_{idx}"):
+                        market_worksheet.update_cell(idx + 2, 4, "판매완료"); st.cache_data.clear(); st.rerun()
+                    if is_admin and b_c2.button(f"🗑️ 매물삭제", key=f"del_{idx}"):
+                        market_worksheet.delete_rows(idx + 2); st.cache_data.clear(); st.rerun()
             else: st.info("매물이 없습니다.")
 
     with tabs[5]: # 📊 분석 통계
@@ -286,13 +273,9 @@ if isinstance(df, pd.DataFrame):
         with g2: st.plotly_chart(px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포"), use_container_width=True)
 
     with tabs[6]: # 💰 정산 현황
-        income = df['분배금_v'].sum()
-        paid = df[df['정산상태'] == "정산완료"]['분배금_v'].sum()
-        st.subheader("💰 정산 관리 대시보드")
+        income, paid = df['분배금_v'].sum(), df[df['정산상태'] == "정산완료"]['분배금_v'].sum()
         m1, m2, m3 = st.columns(3)
-        m1.metric("총 분배금", f"{income:,} 💎")
-        m2.metric("정산 완료", f"{paid:,} 💎")
-        m3.metric("남은 금액", f"{income-paid:,} 💎", delta_color="inverse")
+        m1.metric("총 분배금", f"{income:,} 💎"); m2.metric("정산 완료", f"{paid:,} 💎"); m3.metric("남은 금액", f"{income-paid:,} 💎", delta_color="inverse")
         st.divider()
         money_rank = add_medal_logic(df[df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
         money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,} 다이아")
@@ -301,10 +284,8 @@ if isinstance(df, pd.DataFrame):
             if st.button("💾 정산 상태 저장"):
                 idx = sheet_header.index("정산상태") + 1
                 for _, row in edited_df.iterrows():
-                    cell = worksheet.find(row['이름'])
-                    worksheet.update_cell(cell.row, idx, row['정산상태'])
-                st.cache_data.clear()
-                st.rerun()
+                    cell = worksheet.find(row['이름']); worksheet.update_cell(cell.row, idx, row['정산상태'])
+                st.cache_data.clear(); st.rerun()
         else:
             money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
             st.dataframe(money_rank[['순위', '문파', '이름', '분배금_표시', '상태']], use_container_width=True, hide_index=True, height=700)
