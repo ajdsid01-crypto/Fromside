@@ -20,7 +20,7 @@ st.markdown("""
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.8rem !important; }
     .stDivider { margin: 0.8rem 0 !important; }
     
-    /* 표 내부 데이터 좌측 정렬 강제 (HTML 테이블용) */
+    /* 🚨 표 내부 데이터 좌측 정렬 강제 (HTML 테이블용) */
     .custom-table {
         width: 100%; border-collapse: collapse; color: white; background-color: #111;
         border-radius: 10px; overflow: hidden; margin-top: 10px;
@@ -110,8 +110,18 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if isinstance(df, pd.DataFrame):
+    # 🔍 검색창 필터링 로직 추가
     with st.sidebar:
         st.markdown("<div style='text-align:center; padding-bottom:10px;'><img src='https://img.icons8.com/neon/150/shield.png' width='75'></div>", unsafe_allow_html=True)
+        
+        # 🚨 [검색창 복구]
+        search_query = st.text_input("🔍 길드원 이름 검색", placeholder="검색할 닉네임 입력")
+        if search_query:
+            filtered_df = df[df['이름'].str.contains(search_query, case=False, na=False)]
+        else:
+            filtered_df = df.copy()
+
+        st.divider()
         
         timer_html = """
         <div style="background:linear-gradient(135deg,#151515,#0a0a0a); border:1px solid #76B90066; padding:15px; border-radius:10px; text-align:center;">
@@ -146,9 +156,8 @@ if isinstance(df, pd.DataFrame):
             with y2: st.link_button(name, url, use_container_width=True)
         st.divider()
         
-        # 🚨 [인증 상태 로직] session_state를 사용하여 인증 유지
         with st.expander("🔐 ADMIN", expanded=st.session_state.authenticated):
-            admin_pw = st.text_input("PASSWORD", type="password")
+            admin_pw = st.text_input("PASSWORD", type="password", key="admin_input")
             if admin_pw == "rkdhkdthfdl12":
                 st.session_state.authenticated = True
                 st.success("인증되었습니다.")
@@ -188,21 +197,23 @@ if isinstance(df, pd.DataFrame):
                 st.markdown(f"#### 🕒 {t_name}")
                 st.markdown(f"<div class='participant-box'>{', '.join(names) if names else '──'}</div>", unsafe_allow_html=True)
         st.divider()
-        boss_vis = add_medal_logic(df.sort_values(by="누계_v", ascending=False))
+        # 검색 결과(filtered_df) 적용
+        boss_vis = add_medal_logic(filtered_df.sort_values(by="누계_v", ascending=False))
         for col in ['14시', '18시', '22시']: boss_vis[col] = boss_vis[col].apply(lambda x: "✅" if str(x).strip().lower() in ['o', 'ㅇ', 'v'] else "──")
         display_custom_table(boss_vis, ['순위', '문파', '이름', '누계_v', '14시', '18시', '22시'], ['순위', '문파', '이름', '누계', '14시', '18시', '22시'])
 
     with tabs[1]: # 🛡️ 투력 현황
-        cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
+        cp_rank = add_medal_logic(filtered_df.sort_values(by="전투력_v", ascending=False))
         cp_rank['전투력'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
         display_custom_table(cp_rank, ['순위', '문파', '이름', '직업', '전투력', '성장'], ['순위', '문파', '이름', '직업', '전투력', '성장'])
 
     with tabs[2]: # 🔥 성장 랭킹
-        growth_rank = add_medal_logic(df.sort_values(by="성장_v", ascending=False))
+        growth_rank = add_medal_logic(filtered_df.sort_values(by="성장_v", ascending=False))
         growth_rank['전투력'] = growth_rank['전투력_v'].apply(lambda x: f"{x:,}")
         display_custom_table(growth_rank, ['순위', '문파', '이름', '성장', '전투력'], ['순위', '문파', '이름', '성장', '전투력'])
 
     with tabs[4]: # 🛍️ 문파 거래소
+        # 거래소는 닉네임 검색과 별개로 전체 매물 표시 (혹은 판매자로 검색 연동 가능)
         m1, m2 = st.columns([1, 2])
         with m1:
             with st.form("market_form", clear_on_submit=True):
@@ -210,8 +221,9 @@ if isinstance(df, pd.DataFrame):
                 if st.form_submit_button("등록"):
                     if market_worksheet: market_worksheet.append_row([ms, mi, mp, "판매중"]); st.cache_data.clear(); st.rerun()
         with m2:
-            if not market_df.empty:
-                for idx, row in market_df.iterrows():
+            display_market = market_df[market_df['판매자'].str.contains(search_query, case=False, na=False)] if search_query else market_df
+            if not display_market.empty:
+                for idx, row in display_market.iterrows():
                     is_sold = "판매완료" in row['상태']
                     st.markdown(f'<div class="market-card {"sold-out-card" if is_sold else ""}"><div class="item-info"><div class="item-name">{row["아이템이름"]}</div><div class="item-price">{row["가격"]}</div><div class="item-seller">판매자 : {row["판매자"]}</div></div><div class="status-area"><div class="status-tag">{"판매완료" if is_sold else "판매중"}</div></div></div>', unsafe_allow_html=True)
                     b1, b2 = st.columns(2)
@@ -219,9 +231,10 @@ if isinstance(df, pd.DataFrame):
                         market_worksheet.update_cell(idx + 2, 4, "판매완료"); st.cache_data.clear(); st.rerun()
                     if st.session_state.authenticated and b2.button(f"🗑️ 매물삭제", key=f"x_{idx}"):
                         market_worksheet.delete_rows(idx + 2); st.cache_data.clear(); st.rerun()
+            else: st.info("매물이 없습니다.")
 
-    with tabs[5]: # 📊 분석 통계
-        st.subheader("📊 실시간 분석")
+    with tabs[5]: # 📊 분석 통계 (전체 데이터 기준 통계 유지)
+        st.subheader("📊 연합 실시간 분석")
         sc1, sc2, sc3 = st.columns(3)
         sc1.metric("통합 전투력", f"{df['전투력_v'].sum():,}"); sc2.metric("평균 전투력", f"{int(df['전투력_v'].mean()):,}"); sc3.metric("평균 성장률", f"{df['성장_v'].mean():.2f}%")
         g1, g2 = st.columns(2)
@@ -232,13 +245,13 @@ if isinstance(df, pd.DataFrame):
         income, paid = df['분배금_v'].sum(), df[df['정산상태'] == "정산완료"]['분배금_v'].sum()
         m1, m2, m3 = st.columns(3)
         m1.metric("총 분배금", f"{income:,}"); m2.metric("정산 완료", f"{paid:,}"); m3.metric("남은 금액", f"{income-paid:,}")
-        money_rank = add_medal_logic(df[df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
+        
+        money_rank = add_medal_logic(filtered_df[filtered_df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
         money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,}")
         money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
         
-        # 🚨 [중요] 세션 인증 상태를 확인하여 데이터 에디터 노출
         if st.session_state.authenticated:
-            st.info("🔓 관리자 모드 활성화 - 정산 상태를 수정할 수 있습니다.")
+            st.info("🔓 관리자 모드 활성화 - 검색 결과에 관계없이 전체 정산 목록 수정이 권장됩니다.")
             edited = st.data_editor(money_rank[['순위', '이름', '분배금_표시', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True)
             if st.button("💾 정산 상태 저장"):
                 idx = sheet_header.index("정산상태") + 1
@@ -251,10 +264,8 @@ if isinstance(df, pd.DataFrame):
     with tabs[3]: # 🏆 직업별 랭킹
         job_list = sorted(df['직업'].unique())
         selected_job = st.selectbox("직업 선택", job_list)
-        job_rank = add_medal_logic(df[df['직업'] == selected_job].sort_values(by="전투력_v", ascending=False))
+        job_rank = add_medal_logic(filtered_df[filtered_df['직업'] == selected_job].sort_values(by="전투력_v", ascending=False))
         job_rank['전투력'] = job_rank['전투력_v'].apply(lambda x: f"{x:,}")
         display_custom_table(job_rank, ['순위', '문파', '이름', '전투력', '성장'], ['순위', '문파', '이름', '전투력', '성장'])
 
 else: st.error("데이터 로드 실패")
-
-
