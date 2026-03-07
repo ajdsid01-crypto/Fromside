@@ -295,7 +295,7 @@ if isinstance(df, pd.DataFrame):
         m3.metric("남은 금액", f"{income-paid:,} 💎", delta_color="inverse")
         st.divider()
         money_rank = add_medal_logic(df[df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
-        money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,} 다이아")
+        money_rank['분배금'] = money_rank['분배금_v'].apply(lambda x: f"{x:,} 다이아")
         if is_admin:
             edited_df = st.data_editor(money_rank[['순위', '이름', '분배금_표시', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True, height=700)
             if st.button("💾 정산 상태 저장"):
@@ -310,3 +310,4 @@ if isinstance(df, pd.DataFrame):
             st.dataframe(money_rank[['순위', '문파', '이름', '분배금_표시', '상태']], use_container_width=True, hide_index=True, height=700)
 
 else: st.error("데이터 로드 실패")
+
