@@ -6,7 +6,7 @@ import re
 import plotly.express as px
 import streamlit.components.v1 as components
 
-# 1. 🎨 [디자인] NVIDIA 프리미엄 다크 테마 및 스타일 설정
+# 1. 🎨 [디자인] NVIDIA 프리미엄 다크 테마
 st.set_page_config(page_title="조협클래식 통합 관리 시스템", layout="wide")
 
 st.markdown("""
@@ -21,6 +21,10 @@ st.markdown("""
         padding-left: 8px !important;
     }
     
+    /* 사이드바 최적화 */
+    [data-testid="stSidebar"] > div:first-child { padding-top: 20px !important; }
+    
+    /* 🛍️ 카드형 거래소 디자인 */
     .market-card {
         background: #111; border: 1px solid #222; border-left: 5px solid #76B900;
         padding: 15px; border-radius: 10px; margin-bottom: 5px;
@@ -28,6 +32,7 @@ st.markdown("""
     }
     .item-name { color: #FFF; font-size: 1.25rem; font-weight: bold; }
     .item-price { color: #76B900; font-size: 1.15rem; font-weight: 800; }
+    
     .mvp-bar {
         background: linear-gradient(90deg, #111, #1a1a1a);
         border: 1px solid #76B900; padding: 10px 20px; border-radius: 8px; text-align: center; margin-bottom: 20px;
@@ -163,20 +168,18 @@ if isinstance(df, pd.DataFrame):
     st.title("🛡️ COMMAND CENTER")
     tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
 
-    # 🚨 좌측 정렬용 공통 설정
-    col_cfg_left = {"alignment": "left"}
-
     with tabs[0]: # ⚔️ 보탐 현황
         boss_vis = df.copy()
         for col in ['14시', '18시', '22시']: 
             if col in boss_vis.columns: boss_vis[col] = boss_vis[col].apply(lambda x: "✅" if str(x).strip().lower() in ['o', 'ㅇ', 'v'] else "──")
         
         display_df = add_medal_logic(boss_vis.sort_values(by="누계_v", ascending=False))
-        display_df = display_df.rename(columns={"누계_v": "참여횟수"}) # 제목 변경
+        display_df = display_df.rename(columns={"누계_v": "참여횟수"})
         
+        # 🚨 ProgressColumn과 NumberColumn 정렬 명시
         st.dataframe(
             display_df[['순위', '문파', '이름', '14시', '18시', '22시', '참여횟수']],
-            column_config={"참여횟수": st.column_config.NumberColumn("참여횟수", alignment="left")}, # 좌측 정렬
+            column_config={"참여횟수": st.column_config.NumberColumn("참여횟수", alignment="left")},
             use_container_width=True, hide_index=True, height=700
         )
 
@@ -206,22 +209,22 @@ if isinstance(df, pd.DataFrame):
             use_container_width=True, hide_index=True, height=600
         )
 
-    with tabs[4]: # 🛍️ 거래소
+    with tabs[4]: # 🛍️ 거래소 (입력창 복구)
         m_col1, m_col2 = st.columns([1, 2])
         with m_col1:
+            st.markdown("### 📝 아이템 등록")
             with st.form("market_form", clear_on_submit=True):
                 ms, mi, mp = st.text_input("판매자"), st.text_input("아이템"), st.text_input("가격")
                 if st.form_submit_button("등록") and market_worksheet:
                     market_worksheet.append_row([ms, mi, mp, "판매중"]); st.cache_data.clear(); st.rerun()
         with m_col2:
+            st.markdown("### 📦 매물 목록")
             if not market_df.empty:
                 for idx, row in market_df[market_df['상태'].str.contains("판매중", na=True)].iterrows():
                     st.markdown(f'<div class="market-card"><div class="item-info"><div class="item-name">{row["아이템이름"]}</div><div class="item-seller">판매자 : {row["판매자"]}</div></div><div class="status-area"><div class="status-tag">판매중</div><div class="item-price">{row["가격"]}</div></div></div>', unsafe_allow_html=True)
 
-    with tabs[5]: # 📊 분석 통계 (풀 버전 복구)
+    with tabs[5]: # 📊 분석 통계 (풀 지표 복구)
         st.subheader("📊 연합 실시간 분석")
-        
-        # 상단 핵심 메트릭 4종
         sc1, sc2, sc3, sc4 = st.columns(4)
         sc1.metric("통합 전투력", f"{df['전투력_v'].sum():,}")
         sc2.metric("평균 전투력", f"{int(df['전투력_v'].mean()):,}")
@@ -230,18 +233,14 @@ if isinstance(df, pd.DataFrame):
         
         st.divider()
         
-        # 하단 심층 분석
         g1, g2 = st.columns(2)
         with g1:
-            # 문파별 분석
-            guild_sum = df.groupby('문파')['전투력_v'].sum().reset_index()
-            fig_pie = px.pie(guild_sum, names='문파', values='전투력_v', hole=0.5, title="🏰 문파별 투력 점유율",
+            fig_pie = px.pie(df, names='문파', values='전투력_v', hole=0.5, title="🏰 문파별 투력 점유율",
                              color_discrete_sequence=['#76B900', '#007BFF'])
             fig_pie.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color='white', showlegend=True)
             st.plotly_chart(fig_pie, use_container_width=True)
             
         with g2:
-            # 직업별 인원 분포
             job_counts = df['직업'].value_counts().reset_index()
             job_counts.columns = ['직업', '인원']
             fig_bar = px.bar(job_counts, x='직업', y='인원', title="⚔️ 직업별 인원 분포", text='인원')
@@ -249,23 +248,18 @@ if isinstance(df, pd.DataFrame):
             fig_bar.update_layout(paper_bgcolor='rgba(0,0,0,0)', font_color='white', xaxis_title=None, yaxis_title=None)
             st.plotly_chart(fig_bar, use_container_width=True)
 
-    with tabs[6]: # 💰 정산 현황
+    with tabs[6]: # 💰 정산 현황 (분배금 좌측 정렬)
         elite_df = df[(df['전투력_v'] > 1) & (df['누계_v'] > 0)].copy()
         st.markdown(f"### 💰 정산 대시보드 <img src='https://img.icons8.com/neon/96/money-transfer.png' width='40' style='vertical-align:middle;'>", unsafe_allow_html=True)
-        
         st.metric("정예 총 분배금", f"{elite_df['분배금_v'].sum():,} 💎")
         
         money_rank = add_medal_logic(elite_df.sort_values(by="분배금_v", ascending=False))
-        money_rank = money_rank.rename(columns={"분배금_v": "분배금"}) # 제목 변경
+        money_rank = money_rank.rename(columns={"분배금_v": "분배금"})
         
         if is_admin:
             edited_df = st.data_editor(money_rank[['순위', '이름', '분배금', '정산상태', 'sheet_row']], 
-                                       column_config={
-                                           "분배금": st.column_config.NumberColumn("분배금", alignment="left"),
-                                           "sheet_row": None # 숨김
-                                       },
-                                       disabled=['순위', '이름', '분배금'], 
-                                       hide_index=True, use_container_width=True)
+                                       column_config={"분배금": st.column_config.NumberColumn("분배금", alignment="left"), "sheet_row": None},
+                                       disabled=['순위', '이름', '분배금'], hide_index=True, use_container_width=True)
             if st.button("💾 정산 상태 저장"):
                 idx = sheet_header.index("정산상태") + 1
                 for _, row in edited_df.iterrows():
@@ -273,11 +267,9 @@ if isinstance(df, pd.DataFrame):
                 st.cache_data.clear(); st.rerun()
         else:
             money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
-            st.dataframe(
-                money_rank[['순위', '이름', '분배금', '상태']], 
-                column_config={"분배금": st.column_config.NumberColumn("분배금", alignment="left")},
-                use_container_width=True, hide_index=True, height=700
-            )
+            st.dataframe(money_rank[['순위', '이름', '분배금', '상태']], 
+                         column_config={"분배금": st.column_config.NumberColumn("분배금", alignment="left")},
+                         use_container_width=True, hide_index=True, height=700)
 
 else: st.error(f"데이터 로드 실패")
 
