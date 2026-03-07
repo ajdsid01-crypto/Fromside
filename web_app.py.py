@@ -104,7 +104,7 @@ def load_all_guild_data():
         # 컬럼 존재 여부 확인 후 파싱 (KeyError 방지)
         cols = df.columns
         if '전투력' in cols: df['전투력_v'] = df['전투력'].apply(to_int)
-        if '누계' in cols: df['누계_v'] = df['누계'].apply(to_int)
+        if '누계' in cols: df['누계'] = df['누계'].apply(to_int)
         if '분배금' in cols: df['분배금_v'] = df['분배금'].apply(to_int)
         if '성장' in cols:
             growth_res = df['성장'].apply(parse_growth)
@@ -280,3 +280,4 @@ if isinstance(df, pd.DataFrame):
             st.dataframe(money_rank[['순위', '문파', '이름', '분배금_v', '정산상태']], use_container_width=True, hide_index=True, height=700, column_config=LEFT_ALIGN_CONFIG)
 
 else: st.error(f"오류 발생: {df}")
+
