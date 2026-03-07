@@ -11,7 +11,6 @@ st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="
 
 st.markdown("""
     <style>
-    /* 전체 배경 및 텍스트 고정 */
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
     h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; text-align: left !important; }
     
@@ -21,6 +20,7 @@ st.markdown("""
         background-color: #111111 !important;
         color: white !important;
         text-align: left !important;
+        justify-content: flex-start !important;
     }
 
     /* 🏆 슬림 MVP 바 스타일 */
@@ -77,6 +77,7 @@ def load_all_guild_data():
         def to_int(val):
             clean = re.sub(r'[^0-9]', '', str(val))
             return int(clean) if clean else 0
+            
         def parse_growth(val):
             percent = re.search(r'([\d\.]+)(?=%)', str(val))
             value = re.search(r'\(([^)]+)\)', str(val))
@@ -87,6 +88,7 @@ def load_all_guild_data():
         df['전투력_v'] = df['전투력'].apply(to_int)
         df['누계_v'] = df['누계'].apply(to_int)
         df['분배금_v'] = df['분배금'].apply(to_int)
+        
         growth_parsed = df['성장'].apply(parse_growth)
         df['성장_v'] = [x[0] for x in growth_parsed]
         df['성장_표시'] = [f"{x[0]}% ({x[1]})" for x in growth_parsed]
@@ -104,68 +106,61 @@ spreadsheet, worksheet, df, sheet_header = load_all_guild_data()
 if isinstance(df, pd.DataFrame):
     # --- 사이드바 영역 ---
     with st.sidebar:
-        # 💎 고급형 실시간 자바스크립트 타이머 (NVIDIA 스타일)
+        # 💎 전술적 레이아웃: 로고 + 상태 표시
+        st.markdown(f"""
+            <div style="text-align: center; padding: 10px 0 10px 0;">
+                <img src="https://img.icons8.com/neon/150/shield.png" width="85" style="filter: drop-shadow(0 0 8px #76B900);">
+                <div style="margin-top: 10px; display: flex; justify-content: center; gap: 5px;">
+                    <span style="background: #111; border: 1px solid #76B900; color: #76B900; font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: bold;">ALLIANCE</span>
+                    <span style="background: #111; border: 1px solid #76B900; color: #76B900; font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: bold;">ACTIVE</span>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # 🕒 프리미엄 실시간 타이머 (줄 간격 및 가독성 최적화)
         timer_html = """
-        <div id="boss-timer-premium" style="
-            background: linear-gradient(135deg, #0a0a0a 0%, #151515 100%);
-            border: 1px solid rgba(118, 185, 0, 0.3);
-            border-top: 3px solid #76B900;
-            padding: 20px 15px;
-            border-radius: 12px;
+        <div id="boss-timer-hq" style="
+            background: linear-gradient(180deg, #121212 0%, #080808 100%);
+            border: 1px solid rgba(118, 185, 0, 0.4);
+            padding: 15px;
+            border-radius: 8px;
             text-align: center;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
             font-family: sans-serif;
+            line-height: 1.1;
         ">
-            <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 12px;">
-                <span style="width: 8px; height: 8px; background-color: #ff4b4b; border-radius: 50%; display: inline-block; animation: pulse 1.5s infinite;"></span>
-                <span style="font-size: 11px; font-weight: bold; color: #ff4b4b; letter-spacing: 1px; text-transform: uppercase;">Live Boss Radar</span>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 5px;">
+                <div style="width: 6px; height: 6px; background: #ff4b4b; border-radius: 50%; animation: blink 1s infinite;"></div>
+                <span id="target-label" style="font-size: 11px; font-weight: bold; color: #888; letter-spacing: 1px;">--:-- BOSS</span>
             </div>
             
-            <div id="target-label" style="font-size: 14px; color: #888; margin-bottom: 4px;">--:-- NEXT BOSS</div>
             <div id="countdown-val" style="
-                font-size: 34px; 
-                font-weight: 800; 
+                font-size: 36px; 
+                font-weight: 900; 
                 color: #76B900; 
                 font-family: 'Courier New', monospace;
-                letter-spacing: -1px;
-                text-shadow: 0 0 15px rgba(118, 185, 0, 0.4);
+                margin: 2px 0;
+                text-shadow: 0 0 10px rgba(118, 185, 0, 0.5);
             ">00:00:00</div>
             
-            <div style="margin-top: 15px; font-size: 10px; color: #444; border-top: 1px solid #222; padding-top: 10px;">
-                SERVER TIME (KST)
-            </div>
+            <div style="font-size: 9px; color: #444; letter-spacing: 2px; margin-top: 5px;">REMAINING TIME</div>
         </div>
 
         <style>
-            @keyframes pulse {
-                0% { opacity: 1; transform: scale(1); }
-                50% { opacity: 0.4; transform: scale(1.2); }
-                100% { opacity: 1; transform: scale(1); }
-            }
+            @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
         </style>
 
         <script>
         function updateTimer() {
-            // 한국 시간(KST) 강제 설정
             const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"}));
             const bossTimes = [14, 18, 20];
             let target = null;
-
             for (let hour of bossTimes) {
-                let t = new Date(now);
-                t.setHours(hour, 0, 0, 0);
-                if (now < t) {
-                    target = t;
-                    break;
-                }
+                let t = new Date(now); t.setHours(hour, 0, 0, 0);
+                if (now < t) { target = t; break; }
             }
-
             if (!target) {
-                target = new Date(now);
-                target.setDate(now.getDate() + 1);
-                target.setHours(14, 0, 0, 0);
+                target = new Date(now); target.setDate(now.getDate() + 1); target.setHours(14, 0, 0, 0);
             }
-
             const diff = target - now;
             const h = String(Math.floor(diff / 3600000)).padStart(2, '0');
             const m = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0');
@@ -174,19 +169,16 @@ if isinstance(df, pd.DataFrame):
             document.getElementById('target-label').innerText = target.getHours() + ":00 NEXT BOSS";
             document.getElementById('countdown-val').innerText = h + ":" + m + ":" + s;
         }
-        setInterval(updateTimer, 1000);
-        updateTimer();
+        setInterval(updateTimer, 1000); updateTimer();
         </script>
         """
-        st.markdown("<div style='text-align:center; padding-top:10px;'><img src='https://img.icons8.com/neon/150/shield.png' width='55'></div>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align:center; color:#76B900; font-weight:bold; font-size:18px; margin-bottom:15px;'>오늘만산다,살자</p>", unsafe_allow_html=True)
-        components.html(timer_html, height=200)
+        components.html(timer_html, height=150)
         st.divider()
         
-        st.subheader("📊 연합 현황")
+        st.subheader("📊 연합 실시간 지표")
         c1, c2 = st.columns(2)
-        c1.metric("총 인원", f"{len(df)}명")
-        c2.metric("총 전투력", f"{df['전투력_v'].sum():,}")
+        c1.metric("인원", f"{len(df)}명")
+        c2.metric("총투력", f"{df['전투력_v'].sum():,}")
         st.divider()
         
         st.subheader("📺 연합 방송 센터")
@@ -197,19 +189,20 @@ if isinstance(df, pd.DataFrame):
             sc1, sc2 = st.columns([1, 4])
             with sc1: st.image(f"https://img.icons8.com/neon/96/{icon}.png", width=30)
             with sc2: st.link_button(name, url, use_container_width=True)
-        
+            
         st.divider()
-        with st.expander("🔐 관리자 접속"):
-            admin_pw = st.text_input("암호 입력", type="password")
+        with st.expander("🔐 ADMIN"):
+            admin_pw = st.text_input("PW", type="password")
             is_admin = (admin_pw == "1234") 
-            if st.button("🔄 데이터 강제 새로고침"):
+            if st.button("RELOAD"):
                 st.cache_data.clear()
                 st.rerun()
 
     # --- 메인 영역 ---
-    st.title("🛡️ 조협클래식 오늘만산다/오늘만살자")
+    st.title("🛡️ ALLIANCE COMMAND CENTER")
     
-    search_q = st.text_input("🔍 캐릭터명 검색", placeholder="닉네임 입력")
+    # 🔍 검색창
+    search_q = st.text_input("🔍 연합원 검색", placeholder="닉네임 입력")
     if search_q:
         search_res = df[df['이름'].str.contains(search_q, na=False, case=False)].copy()
         if not search_res.empty:
@@ -241,23 +234,23 @@ if isinstance(df, pd.DataFrame):
         st.dataframe(boss_rank[['순위', '문파', '이름', '14시', '18시', '22시', '누계_v']], use_container_width=True, hide_index=True,
                      column_config={"누계_v": st.column_config.ProgressColumn("참여도", format="%d회", min_value=0, max_value=int(max_val) if max_val > 0 else 21)})
 
-    with tabs[1]:
+    with tabs[1]: # 🛡️ 투력 현황
         cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
         cp_rank['전투력_표시'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
         st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True)
 
-    with tabs[2]:
+    with tabs[2]: # 🔥 성장 랭킹
         growth_rank = add_medal_logic(df.sort_values(by="성장_v", ascending=False))
         st.dataframe(growth_rank[['순위', '문파', '이름', '성장_표시', '전투력']], use_container_width=True, hide_index=True)
 
-    with tabs[3]:
+    with tabs[3]: # 🏆 직업별 랭킹
         job_list = sorted(df['직업'].unique())
         selected_job = st.selectbox("직업 선택", job_list)
         job_rank = add_medal_logic(df[df['직업'] == selected_job].sort_values(by="전투력_v", ascending=False))
         job_rank['전투력_표시'] = job_rank['전투력_v'].apply(lambda x: f"{x:,}")
         st.dataframe(job_rank[['순위', '문파', '이름', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True)
 
-    with tabs[4]:
+    with tabs[4]: # 📊 분석 통계
         sc1, sc2, sc3 = st.columns(3)
         sc1.metric("통합 전투력", f"{df['전투력_v'].sum():,}")
         sc2.metric("평균 전투력", f"{int(df['전투력_v'].mean()):,}")
@@ -271,7 +264,7 @@ if isinstance(df, pd.DataFrame):
             fig_bar = px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포", color_discrete_sequence=['#76B900'])
             st.plotly_chart(fig_bar, use_container_width=True)
 
-    with tabs[5]:
+    with tabs[5]: # 💰 정산 현황
         money_rank = add_medal_logic(df[df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
         money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,} 다이아")
         if is_admin:
@@ -289,8 +282,6 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error("데이터 로드 실패")
-
-
 
 
 
