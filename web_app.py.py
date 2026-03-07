@@ -103,7 +103,7 @@ if isinstance(df, pd.DataFrame):
         # 🕒 1초마다 줄어드는 실시간 자바스크립트 타이머 (NVIDIA 스타일)
         timer_html = """
         <div id="boss-timer-root" style="background-color: #111; border: 1px solid #76B900; padding: 15px; border-radius: 10px; text-align: center; color: white; font-family: sans-serif;">
-            <div style="font-size: 14px; color: #888; margin-bottom: 5px;">다음 보스 타임</div>
+            <div style="font-size: 14px; color: #888; margin-bottom: 5px;"></div>
             <div id="target-label" style="font-size: 18px; color: #76B900; font-weight: bold;">--:--</div>
             <div id="countdown-val" style="font-size: 32px; font-weight: bold; font-family: 'Courier New', monospace; margin-top: 5px;">00:00:00</div>
         </div>
@@ -251,6 +251,7 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error("데이터 로드 실패")
+
 
 
 
