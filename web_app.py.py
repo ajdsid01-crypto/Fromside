@@ -17,7 +17,6 @@ st.markdown("""
     /* 사이드바 여백 최적화 */
     [data-testid="stSidebar"] > div:first-child { padding-top: 20px !important; }
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.8rem !important; }
-    .stDivider { margin: 0.8rem 0 !important; }
     
     /* 🛍️ 카드형 거래소 디자인 */
     .market-card {
@@ -30,18 +29,9 @@ st.markdown("""
     .item-name { color: #FFF; font-size: 1.25rem; font-weight: bold; margin-bottom: 3px; }
     .item-price { color: #76B900; font-size: 1.15rem; font-weight: 800; margin-bottom: 6px; }
     .item-seller { color: #888; font-size: 0.9rem; }
-    .status-area { flex: 1.5; text-align: right; }
-    .status-tag { 
-        display: inline-block; padding: 4px 10px; border-radius: 6px; 
-        font-size: 0.75rem; font-weight: bold; border: 1px solid #76B900; color: #76B900; margin-bottom: 12px;
-    }
-    .status-tag-sold { border-color: #555; color: #555; }
     
     /* 표 스타일 */
     [data-testid="stDataFrame"] { background-color: #111111 !important; }
-    div[data-testid="stDataFrame"] div[data-baseweb="table"] div {
-        background-color: #111111 !important; color: white !important; text-align: left !important;
-    }
 
     .mvp-bar {
         background: linear-gradient(90deg, #111, #1a1a1a);
@@ -78,7 +68,6 @@ def load_all_guild_data():
         sheet = spreadsheet.sheet1
         all_data = sheet.get_all_values()
         
-        # '이름' 헤더 자동 검색
         header_idx = 0
         for i, row in enumerate(all_data):
             if "이름" in row:
@@ -87,11 +76,10 @@ def load_all_guild_data():
         
         header = all_data[header_idx]
         rows = all_data[header_idx + 1:]
-        
         df = pd.DataFrame(rows, columns=header)
         df = df[df['이름'].str.strip() != ""].copy()
         
-        # 거래소 시트 로드
+        # 거래소 시트
         market_sheet = None
         market_df = pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
         try:
@@ -110,10 +98,8 @@ def load_all_guild_data():
             return int(clean) if clean else 0
         
         for col in ['전투력', '누계', '분배금']:
-            if col in df.columns:
-                df[f'{col}_v'] = df[col].apply(to_int)
-            else:
-                df[f'{col}_v'] = 0
+            if col in df.columns: df[f'{col}_v'] = df[col].apply(to_int)
+            else: df[f'{col}_v'] = 0
 
         if '정산상태' not in df.columns: df['정산상태'] = "미정산"
         df['정산상태'] = df['정산상태'].apply(lambda x: "정산완료" if str(x).strip() == "정산완료" else "미정산")
@@ -183,27 +169,61 @@ if isinstance(df, pd.DataFrame):
     st.title("🛡️ Chosun Swordsman Classic")
     tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
 
-    with tabs[0]: # 보탐
+    with tabs[0]: # ⚔️ 보탐 현황
         max_val = df['누계_v'].max()
         if max_val > 0:
             mvps = df[df['누계_v'] == max_val]['이름'].tolist()
             st.markdown(f"<div class='mvp-bar'>🏆 이번 주 보탐 MVP : {', '.join(mvps)}</div>", unsafe_allow_html=True)
+        
+        # 상단 실시간 참여자 박스
         p_cols = st.columns(3)
         t_info = [("14시", "14시_p"), ("18시", "18시_p"), ("20시", "22시_p")]
         for i, (t_name, p_col) in enumerate(t_info):
             with p_cols[i]:
                 names = df[df[p_col]]['이름'].tolist() if p_col in df.columns else []
                 st.markdown(f"#### 🕒 {t_name}"); st.markdown(f"<div class='participant-box'>{', '.join(names) if names else '참여자 없음'}</div>", unsafe_allow_html=True)
+        
         st.divider()
+        
+        # 🚨 [수정 핵심] 누계 컬럼에 형광색 그래프(Bar) 적용
         boss_vis = df.copy()
         for col in ['14시', '18시', '22시']: 
             if col in boss_vis.columns: boss_vis[col] = boss_vis[col].apply(lambda x: "✅" if str(x).strip().lower() in ['o', 'ㅇ', 'v'] else "──")
-        st.dataframe(add_medal_logic(boss_vis.sort_values(by="누계_v", ascending=False))[['순위', '문파', '이름', '14시', '18시', '22시', '누계_v']], use_container_width=True, hide_index=True, height=700)
+        
+        display_df = add_medal_logic(boss_vis.sort_values(by="누계_v", ascending=False))
+        
+        # 🛡️ st.dataframe의 column_config를 이용해 막대 그래프를 그립니다.
+        st.dataframe(
+            display_df[['순위', '문파', '이름', '14시', '18시', '22시', '누계_v']],
+            column_config={
+                "누계_v": st.column_config.ProgressColumn(
+                    "보탐 참여(누계)",
+                    help="이번 주 총 보스 참여 횟수",
+                    format="%d회",
+                    min_value=0,
+                    max_value=int(max_val) if max_val > 0 else 21,
+                    color="green" # 형광색 느낌의 초록색 막대
+                )
+            },
+            use_container_width=True,
+            hide_index=True,
+            height=700
+        )
 
-    with tabs[1]: # 투력
+    with tabs[1]: # 투력 현황 (여기도 전투력 막대 그래프 추가)
         cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
-        cp_rank['전투력_표시'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
-        st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시']], use_container_width=True, hide_index=True, height=700)
+        st.dataframe(
+            cp_rank[['순위', '문파', '이름', '직업', '전투력_v']],
+            column_config={
+                "전투력_v": st.column_config.ProgressColumn(
+                    "전투력",
+                    format="%d",
+                    min_value=0,
+                    max_value=int(df['전투력_v'].max())
+                )
+            },
+            use_container_width=True, hide_index=True, height=700
+        )
 
     with tabs[4]: # 거래소
         m_col1, m_col2 = st.columns([1, 2])
@@ -230,13 +250,11 @@ if isinstance(df, pd.DataFrame):
                         if st.button(f"🗑️ 삭제", key=f"del_{idx}"):
                             market_worksheet.delete_rows(idx + 2); st.cache_data.clear(); st.rerun()
 
-    with tabs[5]: # 📊 분석 통계 (복구 완료)
+    with tabs[5]: # 📊 분석 통계
         st.subheader("📊 연합 실시간 분석")
         sc1, sc2, sc3, sc4 = st.columns(4)
-        total_cp = df['전투력_v'].sum()
-        avg_cp = int(df['전투력_v'].mean()) if len(df) > 0 else 0
-        sc1.metric("통합 전투력", f"{total_cp:,}")
-        sc2.metric("평균 전투력", f"{avg_cp:,}")
+        sc1.metric("통합 전투력", f"{df['전투력_v'].sum():,}")
+        sc2.metric("평균 전투력", f"{int(df['전투력_v'].mean()):,}")
         sc3.metric("최고 전투력", f"{df['전투력_v'].max():,}")
         sc4.metric("연합 인원", f"{len(df)}명")
         st.divider()
@@ -279,23 +297,6 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error(f"데이터 로드 실패")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
