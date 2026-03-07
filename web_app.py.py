@@ -149,7 +149,7 @@ if isinstance(df, pd.DataFrame):
         # 🚨 [인증 상태 로직] session_state를 사용하여 인증 유지
         with st.expander("🔐 ADMIN", expanded=st.session_state.authenticated):
             admin_pw = st.text_input("PASSWORD", type="password")
-            if admin_pw == "1234":
+            if admin_pw == "rkdhkdthfdl12":
                 st.session_state.authenticated = True
                 st.success("인증되었습니다.")
             elif admin_pw != "":
@@ -256,4 +256,5 @@ if isinstance(df, pd.DataFrame):
         display_custom_table(job_rank, ['순위', '문파', '이름', '전투력', '성장'], ['순위', '문파', '이름', '전투력', '성장'])
 
 else: st.error("데이터 로드 실패")
+
 
