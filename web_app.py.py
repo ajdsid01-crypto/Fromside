@@ -199,10 +199,10 @@ if isinstance(df, pd.DataFrame):
                 st.rerun()
 
     # --- 메인 영역 ---
-    st.title("🛡️ ALLIANCE COMMAND CENTER")
+    st.title("🛡️ 조선협객전 문파 관리")
     
     # 🔍 검색창
-    search_q = st.text_input("🔍 연합원 검색", placeholder="닉네임 입력")
+    search_q = st.text_input("🔍 문파원 검색", placeholder="닉네임 입력")
     if search_q:
         search_res = df[df['이름'].str.contains(search_q, na=False, case=False)].copy()
         if not search_res.empty:
@@ -261,7 +261,7 @@ if isinstance(df, pd.DataFrame):
             fig_pie = px.pie(df, names='문파', values='전투력_v', hole=0.6, title="문파별 투력 비중", color_discrete_map={"오늘만산다": "#76B900", "오늘만살자": "#007BFF"})
             st.plotly_chart(fig_pie, use_container_width=True)
         with g2:
-            fig_bar = px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포", color_discrete_sequence=['#76B900'])
+            fig_bar = px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="문파 직업 분포", color_discrete_sequence=['#76B900'])
             st.plotly_chart(fig_bar, use_container_width=True)
 
     with tabs[5]: # 💰 정산 현황
@@ -282,6 +282,7 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error("데이터 로드 실패")
+
 
 
 
