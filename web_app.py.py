@@ -81,7 +81,6 @@ def load_all_guild_data():
         
         market_sheet = spreadsheet.worksheet("거래소")
         m_values = market_sheet.get_all_values()
-        # 🚨 컬럼명을 명시적으로 지정하여 오류 방지
         market_df = pd.DataFrame(m_values[1:], columns=["판매자", "아이템이름", "가격", "상태"]) if len(m_values) > 1 else pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
 
         def to_int(val):
@@ -99,7 +98,9 @@ def load_all_guild_data():
 
         df['성장_v'], df['성장'] = zip(*df['성장'].apply(parse_growth))
         df['정산상태'] = df['정산상태'].apply(lambda x: "정산완료" if str(x).strip() == "정산완료" else "미정산") if '정산상태' in df.columns else "미정산"
-        df['14_p'], df['18_p'], df['22_p'] = df['14시'].apply(lambda x: str(x).strip().lower() in ['o', 'ㅇ', 'v']), df['18시'].apply(lambda x: str(x).strip().lower() in ['o', 'ㅇ', 'v']), df['22시'].apply(lambda x: str(x).strip().lower() in ['o', 'ㅇ', 'v'])
+        df['14_p'] = df['14시'].apply(lambda x: str(x).strip().lower() in ['o', 'ㅇ', 'v'])
+        df['18_p'] = df['18시'].apply(lambda x: str(x).strip().lower() in ['o', 'ㅇ', 'v'])
+        df['22_p'] = df['22시'].apply(lambda x: str(x).strip().lower() in ['o', 'ㅇ', 'v'])
         
         return spreadsheet, sheet, df, header, market_sheet, market_df
     except Exception as e:
@@ -163,11 +164,49 @@ if isinstance(df, pd.DataFrame):
     st.title("🛡️ COMMAND CENTER")
 
     # 🔍 상단 검색창
-    search_query = st.text_input("🔍 길드원 닉네임으로 검색", placeholder="검색어를 입력하면 아래 모든 표가 필터링됩니다.")
+    search_query = st.text_input("🔍 길드원 닉네임으로 검색", placeholder="검색어를 입력하면 프로필 요약과 함께 아래 표가 필터링됩니다.")
     if search_query:
         filtered_df = df[df['이름'].str.contains(search_query, case=False, na=False)]
     else:
         filtered_df = df.copy()
+
+    # ==========================================
+    # 🚨 [신규 추가] 캐릭터 검색 결과 '종합 프로필 카드' 표시 영역
+    # ==========================================
+    if search_query and not filtered_df.empty:
+        st.markdown("#### 🧑‍🎤 캐릭터 통합 프로필")
+        for _, row in filtered_df.iterrows():
+            st.markdown(f"""
+            <div style="background-color: #111; border: 1px solid #222; border-left: 5px solid #76B900; padding: 20px; border-radius: 10px; margin-bottom: 15px;">
+                <h3 style="margin-top: 0; color: #FFF !important; display: flex; align-items: center; gap: 10px;">
+                    <span style="color: #76B900; font-size: 1.1rem;">[{row.get('문파', '무소속')}]</span> 
+                    {row['이름']} 
+                    <span style="font-size: 0.9rem; color: #888; border: 1px solid #444; padding: 2px 8px; border-radius: 12px;">{row.get('직업', '-')}</span>
+                </h3>
+                <div style="display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 30px; margin-top: 15px;">
+                    <div>
+                        <div style="color: #76B900; font-size: 0.85rem; font-weight: bold; margin-bottom: 3px;">⚔️ 전투력</div>
+                        <div style="font-size: 1.3rem; font-weight: bold; color: white;">{row.get('전투력', '0')}</div>
+                    </div>
+                    <div>
+                        <div style="color: #76B900; font-size: 0.85rem; font-weight: bold; margin-bottom: 3px;">🔥 성장률</div>
+                        <div style="font-size: 1.3rem; font-weight: bold; color: white;">{row.get('성장', '0%')}</div>
+                    </div>
+                    <div>
+                        <div style="color: #76B900; font-size: 0.85rem; font-weight: bold; margin-bottom: 3px;">👑 보탐 참여(누계)</div>
+                        <div style="font-size: 1.3rem; font-weight: bold; color: white;">{row.get('누계_v', 0)} 회</div>
+                    </div>
+                    <div>
+                        <div style="color: #76B900; font-size: 0.85rem; font-weight: bold; margin-bottom: 3px;">💰 분배금</div>
+                        <div style="font-size: 1.3rem; font-weight: bold; color: white;">{row.get('분배금_v', 0):,} <span style="font-size: 0.8rem; color:#888;">({row.get('정산상태', '미정산')})</span></div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        st.divider()
+    elif search_query and filtered_df.empty:
+        st.warning(f"'{search_query}'에 해당하는 길드원을 찾을 수 없습니다.")
+    # ==========================================
 
     tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
 
@@ -200,12 +239,44 @@ if isinstance(df, pd.DataFrame):
         for col in ['14시', '18시', '22시']: boss_vis[col] = boss_vis[col].apply(lambda x: "✅" if str(x).strip().lower() in ['o', 'ㅇ', 'v'] else "──")
         display_custom_table(boss_vis, ['순위', '문파', '이름', '누계_v', '14시', '18시', '22시'], ['순위', '문파', '이름', '누계', '14시', '18시', '22시'])
 
+        # ==========================================
+        # 🚨 [신규 추가] 관리자 전용 누계 초기화 로직
+        # ==========================================
+        if st.session_state.authenticated:
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.error("⚠️ **관리자 전용 : 보탐 누계 초기화**")
+            
+            reset_c1, reset_c2 = st.columns([3, 1])
+            with reset_c1:
+                st.info("새로운 주간/월간 보탐 기록을 위해 모든 인원의 '누계' 점수를 0으로 일괄 초기화합니다.")
+                confirm_reset = st.checkbox("위 내용을 확인했으며, 전체 초기화를 진행합니다.")
+                
+            with reset_c2:
+                if st.button("🔄 누계 0으로 초기화", disabled=not confirm_reset, use_container_width=True):
+                    with st.spinner("데이터 초기화 중..."):
+                        try:
+                            # 1. 시트 헤더에서 '누계' 컬럼의 위치 파악 (1-based index)
+                            col_idx = sheet_header.index('누계') + 1
+                            # 2. 업데이트할 셀 범위 설정 (8행부터 시작)
+                            cell_list = worksheet.range(8, col_idx, 7 + len(df), col_idx)
+                            # 3. 셀 값 0으로 변경
+                            for cell in cell_list:
+                                cell.value = '0'
+                            # 4. 일괄 업데이트 (속도 최적화)
+                            worksheet.update_cells(cell_list)
+                            st.cache_data.clear()
+                            st.success("✅ 모든 인원의 누계가 성공적으로 초기화되었습니다.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"초기화 중 오류가 발생했습니다: {e}")
+        # ==========================================
+
     with tabs[1]: # 🛡️ 투력 현황
         cp_rank = add_medal_logic(filtered_df.sort_values(by="전투력_v", ascending=False))
         cp_rank['전투력'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
         display_custom_table(cp_rank, ['순위', '문파', '이름', '직업', '전투력', '성장'], ['순위', '문파', '이름', '직업', '전투력', '성장'])
 
-    with tabs[4]: # 🛍️ 문파 거래소 (🚨 삭제 로직 보강)
+    with tabs[4]: # 🛍️ 문파 거래소
         m1, m2 = st.columns([1, 2])
         with m1:
             with st.form("market_form", clear_on_submit=True):
@@ -219,18 +290,12 @@ if isinstance(df, pd.DataFrame):
                     is_sold = "판매완료" in row['상태']
                     st.markdown(f'<div class="market-card {"sold-out-card" if is_sold else ""}"><div class="item-info"><div class="item-name">{row["아이템이름"]}</div><div class="item-price">{row["가격"]}</div><div class="item-seller">판매자 : {row["판매자"]}</div></div><div class="status-area"><div class="status-tag">{"판매완료" if is_sold else "판매중"}</div></div></div>', unsafe_allow_html=True)
                     b1, b2 = st.columns(2)
-                    
-                    # 🤝 [거래 완료]
                     if not is_sold and b1.button(f"🤝 거래완료", key=f"done_{idx}"):
-                        # 🚨 인덱스 대신 아이템 이름으로 검색해서 업데이트 (더 안전함)
                         cell = market_worksheet.find(row["아이템이름"])
                         market_worksheet.update_cell(cell.row, 4, "판매완료")
                         st.cache_data.clear(); st.rerun()
-                    
-                    # 🗑️ [매물 삭제]
                     if st.session_state.authenticated and b2.button(f"🗑️ 매물삭제", key=f"del_{idx}"):
                         try:
-                            # 🚨 이름으로 정확한 행을 찾아 삭제
                             cell = market_worksheet.find(row["아이템이름"])
                             market_worksheet.delete_rows(cell.row)
                             st.cache_data.clear(); st.success("삭제되었습니다."); st.rerun()
@@ -256,17 +321,18 @@ if isinstance(df, pd.DataFrame):
         else:
             display_custom_table(money_rank, ['순위', '문파', '이름', '분배금_표시', '상태'], ['순위', '문파', '이름', '분배금', '상태'])
 
-    # (기타 탭 로직 동일...)
     with tabs[2]: # 🔥 성장 랭킹
         growth_rank = add_medal_logic(filtered_df.sort_values(by="성장_v", ascending=False))
         growth_rank['전투력'] = growth_rank['전투력_v'].apply(lambda x: f"{x:,}")
         display_custom_table(growth_rank, ['순위', '문파', '이름', '성장', '전투력'], ['순위', '문파', '이름', '성장', '전투력'])
+        
     with tabs[3]: # 🏆 직업별 랭킹
         job_list = sorted(df['직업'].unique())
         selected_job = st.selectbox("직업 선택", job_list)
         job_rank = add_medal_logic(filtered_df[filtered_df['직업'] == selected_job].sort_values(by="전투력_v", ascending=False))
         job_rank['전투력'] = job_rank['전투력_v'].apply(lambda x: f"{x:,}")
         display_custom_table(job_rank, ['순위', '문파', '이름', '전투력', '성장'], ['순위', '문파', '이름', '전투력', '성장'])
+        
     with tabs[5]: # 📊 분석 통계
         st.subheader("📊 연합 실시간 분석")
         sc1, sc2, sc3 = st.columns(3)
