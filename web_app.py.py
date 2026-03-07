@@ -215,8 +215,8 @@ if isinstance(df, pd.DataFrame):
 
     with tabs[1]: # 🛡️ 투력 현황
         cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
-        cp_rank['전투력_표시'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
-        st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
+        cp_rank['전투력'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
+        st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력', '성장']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
     with tabs[2]: # 🔥 성장 랭킹
         growth_rank = add_medal_logic(df.sort_values(by="성장_v", ascending=False))
@@ -310,3 +310,4 @@ if isinstance(df, pd.DataFrame):
             st.dataframe(money_rank[['순위', '문파', '이름', '분배금_표시', '상태']], use_container_width=True, hide_index=True, height=700)
 
 else: st.error("데이터 로드 실패")
+
