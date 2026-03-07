@@ -185,7 +185,7 @@ if isinstance(df, pd.DataFrame):
                 st.rerun()
 
     # --- 메인 영역 ---
-    st.title("🛡️ COMMAND CENTER")
+    st.title("🛡️ Chosun Swordsman Classic")
     
     search_q = st.text_input("🔍 연합원 검색", placeholder="닉네임 입력")
     if search_q:
@@ -265,6 +265,7 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error("데이터 로드 실패")
+
 
 
 
