@@ -120,7 +120,6 @@ if isinstance(df, pd.DataFrame):
     with st.sidebar:
         st.markdown("<div style='text-align:center; padding-bottom:10px;'><img src='https://img.icons8.com/neon/150/shield.png' width='75'></div>", unsafe_allow_html=True)
         
-        # 타이머
         timer_html = """
         <div style="background:linear-gradient(135deg,#151515,#0a0a0a); border:1px solid #76B90066; padding:15px; border-radius:10px; text-align:center;">
             <div style="font-size:11px; color:#888; font-weight:bold; margin-bottom:5px;">NEXT BOSS SCAN</div>
@@ -175,7 +174,6 @@ if isinstance(df, pd.DataFrame):
             mvps = df[df['누계_v'] == max_val]['이름'].tolist()
             st.markdown(f"<div class='mvp-bar'>🏆 이번 주 보탐 MVP : {', '.join(mvps)}</div>", unsafe_allow_html=True)
         
-        # 상단 실시간 참여자 박스
         p_cols = st.columns(3)
         t_info = [("14시", "14시_p"), ("18시", "18시_p"), ("20시", "22시_p")]
         for i, (t_name, p_col) in enumerate(t_info):
@@ -185,45 +183,45 @@ if isinstance(df, pd.DataFrame):
         
         st.divider()
         
-        # 🚨 [수정 핵심] 누계 컬럼에 형광색 그래프(Bar) 적용
         boss_vis = df.copy()
         for col in ['14시', '18시', '22시']: 
             if col in boss_vis.columns: boss_vis[col] = boss_vis[col].apply(lambda x: "✅" if str(x).strip().lower() in ['o', 'ㅇ', 'v'] else "──")
         
         display_df = add_medal_logic(boss_vis.sort_values(by="누계_v", ascending=False))
         
-        # 🛡️ st.dataframe의 column_config를 이용해 막대 그래프를 그립니다.
         st.dataframe(
             display_df[['순위', '문파', '이름', '14시', '18시', '22시', '누계_v']],
-            column_config={
-                "누계_v": st.column_config.ProgressColumn(
-                    "보탐 참여(누계)",
-                    help="이번 주 총 보스 참여 횟수",
-                    format="%d회",
-                    min_value=0,
-                    max_value=int(max_val) if max_val > 0 else 21,
-                    color="green" # 형광색 느낌의 초록색 막대
-                )
-            },
-            use_container_width=True,
-            hide_index=True,
-            height=700
+            column_config={"누계_v": st.column_config.ProgressColumn("보탐 참여(누계)", format="%d회", min_value=0, max_value=int(max_val) if max_val > 0 else 21, color="green")},
+            use_container_width=True, hide_index=True, height=700
         )
 
-    with tabs[1]: # 투력 현황 (여기도 전투력 막대 그래프 추가)
+    with tabs[1]: # 🛡️ 투력 현황
         cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
         st.dataframe(
             cp_rank[['순위', '문파', '이름', '직업', '전투력_v']],
-            column_config={
-                "전투력_v": st.column_config.ProgressColumn(
-                    "전투력",
-                    format="%d",
-                    min_value=0,
-                    max_value=int(df['전투력_v'].max())
-                )
-            },
+            column_config={"전투력_v": st.column_config.ProgressColumn("전투력", format="%d", min_value=0, max_value=int(df['전투력_v'].max()))},
             use_container_width=True, hide_index=True, height=700
         )
+
+    with tabs[3]: # 🚨 [복구 핵심] 🏆 직업별 랭킹
+        st.subheader("🏆 직업별 랭킹 검색")
+        
+        # 직업 리스트 추출 및 검색 칸 배치
+        if '직업' in df.columns:
+            job_list = sorted(df['직업'].unique())
+            selected_job = st.selectbox("조회할 직업을 선택하세요", job_list)
+            
+            # 선택된 직업으로 필터링 및 랭킹 부여
+            job_filtered = df[df['직업'] == selected_job].sort_values(by="전투력_v", ascending=False)
+            job_rank_df = add_medal_logic(job_filtered)
+            
+            st.dataframe(
+                job_rank_df[['순위', '문파', '이름', '전투력_v']],
+                column_config={"전투력_v": st.column_config.ProgressColumn("전투력", format="%d", min_value=0, max_value=int(df['전투력_v'].max()))},
+                use_container_width=True, hide_index=True, height=600
+            )
+        else:
+            st.warning("데이터에 '직업' 컬럼이 없습니다.")
 
     with tabs[4]: # 거래소
         m_col1, m_col2 = st.columns([1, 2])
@@ -260,8 +258,7 @@ if isinstance(df, pd.DataFrame):
         st.divider()
         g1, g2 = st.columns(2)
         with g1:
-            fig_pie = px.pie(df, names='문파', values='전투력_v', hole=0.5, title="🏰 문파별 투력 점유율",
-                             color_discrete_sequence=['#76B900', '#007BFF'])
+            fig_pie = px.pie(df, names='문파', values='전투력_v', hole=0.5, title="🏰 문파별 투력 점유율", color_discrete_sequence=['#76B900', '#007BFF'])
             fig_pie.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='white', showlegend=False)
             st.plotly_chart(fig_pie, use_container_width=True)
         with g2:
@@ -272,7 +269,7 @@ if isinstance(df, pd.DataFrame):
             fig_bar.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='white', xaxis_title=None, yaxis_title=None)
             st.plotly_chart(fig_bar, use_container_width=True)
 
-    with tabs[6]: # 정산 (전투력 > 1 & 누계 > 0 정예 필터링)
+    with tabs[6]: # 정산
         elite_df = df[(df['전투력_v'] > 1) & (df['누계_v'] > 0)].copy()
         income = elite_df['분배금_v'].sum()
         paid = elite_df[elite_df['정산상태'] == "정산완료"]['분배금_v'].sum()
@@ -291,12 +288,12 @@ if isinstance(df, pd.DataFrame):
             money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
             st.dataframe(money_rank[['순위', '문파', '이름', '분배금_v', '상태']], use_container_width=True, hide_index=True, height=700)
 
-    # 나머지 랭킹 탭
-    with tabs[2]: st.dataframe(add_medal_logic(df.sort_values(by="전투력_v", ascending=False))[['순위', '문파', '이름', '전투력']], height=700)
-    with tabs[3]: st.dataframe(df[['문파', '이름', '직업', '전투력']], height=700)
+    # 나머지 탭
+    with tabs[2]: st.dataframe(add_medal_logic(df.sort_values(by="전투력_v", ascending=False))[['순위', '문파', '이름', '전투력_v']], column_config={"전투력_v": st.column_config.ProgressColumn("전투력", format="%d", min_value=0, max_value=int(df['전투력_v'].max()))}, use_container_width=True, hide_index=True, height=700)
 
 else:
     st.error(f"데이터 로드 실패")
+
 
 
 
