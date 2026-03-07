@@ -12,7 +12,6 @@ st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="
 
 st.markdown("""
     <style>
-    /* 전체 배경 및 텍스트 스타일 */
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
     h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; }
     
@@ -20,7 +19,7 @@ st.markdown("""
     [data-testid="stSidebar"] > div:first-child { padding-top: 20px !important; }
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.8rem !important; }
     
-    /* 🛍️ 카드형 거래소 디자인 (요청하신 사진 느낌) */
+    /* 🛍️ 카드형 거래소 디자인 */
     .market-card {
         background: linear-gradient(145deg, #151515, #0d0d0d);
         border: 1px solid #222;
@@ -32,16 +31,13 @@ st.markdown("""
         display: flex;
         justify-content: space-between;
         align-items: center;
-        transition: transform 0.2s;
     }
-    .market-card:hover { transform: translateY(-2px); border-color: #333; }
     .item-info { flex-grow: 1; }
-    .item-name { color: #FFFFFF; font-size: 1.25rem; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.5px; }
-    .item-seller { color: #777; font-size: 0.9rem; font-weight: 500; }
+    .item-name { color: #FFFFFF; font-size: 1.25rem; font-weight: 800; margin-bottom: 6px; }
+    .item-seller { color: #777; font-size: 0.9rem; }
     .item-price-area { text-align: right; min-width: 120px; }
-    .item-price { color: #76B900; font-size: 1.4rem; font-weight: 900; margin-top: 4px; }
+    .item-price { color: #76B900; font-size: 1.4rem; font-weight: 900; }
     .item-status-tag { 
-        display: inline-block;
         background: rgba(118, 185, 0, 0.15); 
         color: #76B900; 
         padding: 3px 10px; 
@@ -91,8 +87,8 @@ def add_medal_logic(df):
     df['순위'] = df['Rank'].apply(medal_icon)
     return df.drop(columns=['Rank'])
 
-# 📂 2. 데이터 로드 및 전처리 (실시간성 강화)
-@st.cache_data(ttl=2) # 2초 캐시로 거의 실시간 반영
+# 📂 2. 데이터 로드 및 전처리
+@st.cache_data(ttl=2)
 def load_all_guild_data():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -108,7 +104,7 @@ def load_all_guild_data():
         df = pd.DataFrame(rows, columns=header)
         df = df[df['이름'].str.strip() != ""].copy()
         
-        # 🚨 거래소 로드 (데이터 위치 강제 매칭)
+        # 거래소 시트 로드
         market_sheet = None
         market_df = pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
         try:
@@ -120,17 +116,25 @@ def load_all_guild_data():
                     fixed_row = (row + ["", "", "", ""])[:4] 
                     processed_rows.append(fixed_row)
                 market_df = pd.DataFrame(processed_rows, columns=["판매자", "아이템이름", "가격", "상태"])
-            else:
-                market_df = pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
         except: pass
 
         def to_int(val):
             clean = re.sub(r'[^0-9]', '', str(val))
             return int(clean) if clean else 0
+        def parse_growth(val):
+            percent = re.search(r'([\d\.]+)(?=%)', str(val))
+            value = re.search(r'\(([^)]+)\)', str(val))
+            p_val = float(percent.group(1)) if percent else 0.0
+            v_val = value.group(1) if value else "0"
+            return p_val, v_val
+
         df['전투력_v'] = df['전투력'].apply(to_int)
         df['누계_v'] = df['누계'].apply(to_int)
         df['분배금_v'] = df['분배금'].apply(to_int)
-        
+        growth_parsed = df['성장'].apply(parse_growth)
+        df['성장_v'] = [x[0] for x in growth_parsed]
+        df['성장_표시'] = [f"{x[0]}% ({x[1]})" for x in growth_parsed]
+
         if '정산상태' in df.columns:
             df['정산상태'] = df['정산상태'].apply(lambda x: "정산완료" if str(x).strip() == "정산완료" else "미정산")
         else:
@@ -172,7 +176,6 @@ if isinstance(df, pd.DataFrame):
         """
         components.html(timer_html, height=120)
         
-        # 🔄 수동 리로드 버튼 (백업용)
         if st.button("🔄 최신 데이터 불러오기", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
@@ -183,65 +186,9 @@ if isinstance(df, pd.DataFrame):
             is_admin = (admin_pw == "1234") 
 
     st.title("🛡️ COMMAND CENTER")
-    tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
+    tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
 
     TABLE_HEIGHT = 700 
-
-    with tabs[2]: # 🛍️ 문파 거래소 (카드형 레이아웃 및 자동 반영)
-        st.subheader("🛍️ 문파 전용 아이템 거래소")
-        
-        m_col1, m_col2 = st.columns([1, 2])
-        
-        with m_col1:
-            st.markdown("### 📝 아이템 등록")
-            with st.form("market_form", clear_on_submit=True):
-                m_seller = st.text_input("판매자 닉네임", placeholder="내 아이디")
-                m_item = st.text_input("아이템 이름", placeholder="아이템명")
-                m_price = st.text_input("가격", placeholder="예: 500, 무료나눔")
-                
-                if st.form_submit_button("아이템 등록하기"):
-                    if market_worksheet:
-                        # 🚨 등록 즉시 시트에 추가
-                        market_worksheet.append_row([m_seller, m_item, m_price, "판매중"])
-                        st.success("등록되었습니다!")
-                        # 🚨 캐시 삭제 후 자동 페이지 리런 (리로드를 누를 필요 없음)
-                        st.cache_data.clear()
-                        st.rerun()
-                    else:
-                        st.error("거래소 시트를 찾을 수 없습니다.")
-
-        with m_col2:
-            st.markdown("### 📦 매물 목록")
-            if not market_df.empty:
-                # '판매중' 상태만 필터링
-                display_items = market_df[market_df['상태'].str.contains("판매중", na=True)]
-                
-                if display_items.empty:
-                    st.info("현재 판매 중인 아이템이 없습니다.")
-                else:
-                    for idx, row in display_items.iterrows():
-                        # 🛍️ 카드형 HTML 렌더링 (사진 느낌 반영)
-                        st.markdown(f"""
-                            <div class="market-card">
-                                <div class="item-info">
-                                    <div class="item-name">{row['아이템이름']}</div>
-                                    <div class="item-seller">Seller: {row['판매자']}</div>
-                                </div>
-                                <div class="item-price-area">
-                                    <div class="item-status-tag">판매중</div>
-                                    <div class="item-price">{row['가격']} 💎</div>
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # 관리자 모드 버튼
-                        if is_admin:
-                            if st.button(f"🗑️ {row['아이템이름']} 삭제", key=f"del_{idx}"):
-                                market_worksheet.delete_rows(idx + 2)
-                                st.cache_data.clear()
-                                st.rerun()
-            else:
-                st.info("등록된 매물이 없습니다.")
 
     with tabs[0]: # ⚔️ 보스 현황
         max_val = df['누계_v'].max()
@@ -265,17 +212,68 @@ if isinstance(df, pd.DataFrame):
         cp_rank['전투력_표시'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
         st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
-    with tabs[3]: # 📊 분석 통계
+    with tabs[2]: # 🔥 성장 랭킹
+        growth_rank = add_medal_logic(df.sort_values(by="성장_v", ascending=False))
+        st.dataframe(growth_rank[['순위', '문파', '이름', '성장_표시', '전투력']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
+
+    with tabs[3]: # 🏆 직업별 랭킹
+        job_list = sorted(df['직업'].unique())
+        selected_job = st.selectbox("직업 선택", job_list)
+        job_rank = add_medal_logic(df[df['직업'] == selected_job].sort_values(by="전투력_v", ascending=False))
+        job_rank['전투력_표시'] = job_rank['전투력_v'].apply(lambda x: f"{x:,}")
+        st.dataframe(job_rank[['순위', '문파', '이름', '전투력_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
+
+    with tabs[4]: # 🛍️ 문파 거래소 (카드형 레이아웃 및 자동 반영)
+        st.subheader("🛍️ 문파 전용 아이템 거래소")
+        m_col1, m_col2 = st.columns([1, 2])
+        with m_col1:
+            with st.form("market_form", clear_on_submit=True):
+                m_seller = st.text_input("판매자 닉네임", placeholder="내 아이디")
+                m_item = st.text_input("아이템 이름", placeholder="아이템명")
+                m_price = st.text_input("가격", placeholder="예: 500, 무료나눔")
+                if st.form_submit_button("아이템 등록하기"):
+                    if market_worksheet:
+                        market_worksheet.append_row([m_seller, m_item, m_price, "판매중"])
+                        st.success("등록되었습니다!")
+                        st.cache_data.clear()
+                        st.rerun()
+        with m_col2:
+            if not market_df.empty:
+                display_items = market_df[market_df['상태'].str.contains("판매중", na=True)]
+                if display_items.empty: st.info("판매 중인 아이템이 없습니다.")
+                else:
+                    for idx, row in display_items.iterrows():
+                        st.markdown(f"""
+                            <div class="market-card">
+                                <div class="item-info">
+                                    <div class="item-name">{row['아이템이름']}</div>
+                                    <div class="item-seller">Seller: {row['판매자']}</div>
+                                </div>
+                                <div class="item-price-area">
+                                    <div class="item-status-tag">판매중</div>
+                                    <div class="item-price">{row['가격']} 💎</div>
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                        if is_admin:
+                            if st.button(f"🗑️ {row['아이템이름']} 삭제", key=f"del_{idx}"):
+                                market_worksheet.delete_rows(idx + 2)
+                                st.cache_data.clear()
+                                st.rerun()
+            else: st.info("등록된 매물이 없습니다.")
+
+    with tabs[5]: # 📊 분석 통계
+        st.subheader("📊 연합 실시간 분석")
         sc1, sc2, sc3 = st.columns(3)
         sc1.metric("통합 전투력", f"{df['전투력_v'].sum():,}")
         sc2.metric("평균 전투력", f"{int(df['전투력_v'].mean()):,}")
-        sc3.metric("총 인원", f"{len(df)}명")
+        sc3.metric("평균 성장률", f"{df['성장_v'].mean():.2f}%")
         st.divider()
         g1, g2 = st.columns(2)
         with g1: st.plotly_chart(px.pie(df, names='문파', values='전투력_v', hole=0.6, title="문파별 투력 비중"), use_container_width=True)
         with g2: st.plotly_chart(px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포"), use_container_width=True)
 
-    with tabs[4]: # 💰 정산 현황
+    with tabs[6]: # 💰 정산 현황
         income = df['분배금_v'].sum()
         paid = df[df['정산상태'] == "정산완료"]['분배금_v'].sum()
         st.subheader("💰 정산 관리 대시보드")
@@ -300,7 +298,6 @@ if isinstance(df, pd.DataFrame):
             st.dataframe(money_rank[['순위', '문파', '이름', '분배금_표시', '상태']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
 else: st.error("데이터 로드 실패")
-
 
 
 
