@@ -6,7 +6,7 @@ import re
 import plotly.express as px
 
 # 1. 🎨 [디자인] NVIDIA 다크 테마 및 전체 레이아웃 설정
-st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="wide")
+st.set_page_config(page_title="조협클래식 오늘만산다/오늘만살자", layout="wide")
 
 st.markdown("""
     <style>
@@ -238,3 +238,4 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error(f"데이터 로드 실패: {df}")
+
