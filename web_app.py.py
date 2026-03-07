@@ -211,7 +211,7 @@ if isinstance(df, pd.DataFrame):
         st.divider()
         boss_vis = df.copy()
         for col in ['14시', '18시', '22시']: boss_vis[col] = boss_vis[col].apply(lambda x: "✅" if str(x).strip().lower() in ['o', 'ㅇ', 'v'] else "──")
-        st.dataframe(add_medal_logic(boss_vis.sort_values(by="누계_v", ascending=False))[['순위', '문파', '이름', '14시', '18시', '22시', '누계_v']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
+        st.dataframe(add_medal_logic(boss_vis.sort_values(by="누계", ascending=False))[['순위', '문파', '이름', '14시', '18시', '22시', '누계']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
     with tabs[1]: # 🛡️ 투력 현황
         cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
@@ -310,4 +310,5 @@ if isinstance(df, pd.DataFrame):
             st.dataframe(money_rank[['순위', '문파', '이름', '분배금_표시', '상태']], use_container_width=True, hide_index=True, height=700)
 
 else: st.error("데이터 로드 실패")
+
 
