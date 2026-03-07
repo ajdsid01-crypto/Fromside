@@ -111,7 +111,7 @@ if isinstance(df, pd.DataFrame):
     with st.sidebar:
         st.markdown("<div style='text-align:center; padding-bottom:10px;'><img src='https://img.icons8.com/neon/150/shield.png' width='75'></div>", unsafe_allow_html=True)
         
-        # 🚨 [해결 1] 타이머 상단에 "NEXT BOSS RADAR" 글자 복구
+        # [복구] 타이머 상단 라벨
         timer_html = """
         <div style="background:linear-gradient(135deg,#151515,#0a0a0a); border:1px solid #76B90066; padding:15px; border-radius:10px; text-align:center;">
             <div style="font-size:11px; color:#888; font-weight:bold; margin-bottom:5px;">NEXT BOSS RADAR</div>
@@ -146,12 +146,12 @@ if isinstance(df, pd.DataFrame):
         st.divider()
         with st.expander("🔐 ADMIN", expanded=False):
             admin_pw = st.text_input("PASSWORD", type="password")
-            is_admin = (admin_pw == "가왕솔이12") 
+            is_admin = (admin_pw == "1234") 
 
-    st.title("🛡️ Chosun Swordsman Classic")
+    st.title("🛡️ COMMAND CENTER")
     tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
 
-    # 표 출력용 HTML 변환 함수
+    # 표 출력용 HTML 변환 함수 (좌측 정렬 강제)
     def display_custom_table(dataframe, columns_to_show, column_names):
         df_display = dataframe[columns_to_show].copy()
         df_display.columns = column_names
@@ -179,7 +179,13 @@ if isinstance(df, pd.DataFrame):
         st.divider()
         boss_vis = add_medal_logic(df.sort_values(by="누계_v", ascending=False))
         for col in ['14시', '18시', '22시']: boss_vis[col] = boss_vis[col].apply(lambda x: "✅" if str(x).strip().lower() in ['o', 'ㅇ', 'v'] else "──")
-        display_custom_table(boss_vis, ['순위', '문파', '이름', '14시', '18시', '22시', '누계_v'], ['순위', '문파', '이름', '14시', '18시', '22시', '누계'])
+        
+        # [수정] 누계 컬럼을 14시 왼쪽으로 배치
+        display_custom_table(
+            boss_vis, 
+            ['순위', '문파', '이름', '누계_v', '14시', '18시', '22시'], 
+            ['순위', '문파', '이름', '누계', '14시', '18시', '22시']
+        )
 
     with tabs[1]: # 🛡️ 투력 현황
         cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
@@ -224,7 +230,7 @@ if isinstance(df, pd.DataFrame):
         money_rank = add_medal_logic(df[df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
         money_rank['분배금'] = money_rank['분배금_v'].apply(lambda x: f"{x:,}")
         
-        # 🚨 [해결 2] 정산 현황 상태에 이모티콘(✅, ⏳) 복구
+        # [복구] 상태 이모티콘
         money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
         
         if is_admin:
@@ -245,5 +251,3 @@ if isinstance(df, pd.DataFrame):
         display_custom_table(job_rank, ['순위', '문파', '이름', '전투력', '성장'], ['순위', '문파', '이름', '전투력', '성장'])
 
 else: st.error("데이터 로드 실패")
-
-
