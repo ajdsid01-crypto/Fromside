@@ -7,19 +7,51 @@ import plotly.express as px
 import streamlit.components.v1 as components
 from datetime import datetime
 
-# 1. 🎨 [디자인] NVIDIA 프리미엄 다크 테마 및 컴팩트 레이아웃
+# 1. 🎨 [디자인] NVIDIA 프리미엄 다크 테마 및 카드 레이아웃 설정
 st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="wide")
 
 st.markdown("""
     <style>
+    /* 전체 배경 및 텍스트 스타일 */
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
-    h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; text-align: left !important; }
+    h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; }
     
-    /* 🚨 사이드바 여백 최적화: 답답함 해소 및 요소 간격 조정 */
+    /* 사이드바 여백 최적화 */
     [data-testid="stSidebar"] > div:first-child { padding-top: 20px !important; }
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.8rem !important; }
-    .stDivider { margin: 0.8rem 0 !important; }
     
+    /* 🛍️ 카드형 거래소 디자인 (요청하신 사진 느낌) */
+    .market-card {
+        background: linear-gradient(145deg, #151515, #0d0d0d);
+        border: 1px solid #222;
+        border-left: 5px solid #76B900;
+        padding: 18px;
+        border-radius: 12px;
+        margin-bottom: 15px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: transform 0.2s;
+    }
+    .market-card:hover { transform: translateY(-2px); border-color: #333; }
+    .item-info { flex-grow: 1; }
+    .item-name { color: #FFFFFF; font-size: 1.25rem; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.5px; }
+    .item-seller { color: #777; font-size: 0.9rem; font-weight: 500; }
+    .item-price-area { text-align: right; min-width: 120px; }
+    .item-price { color: #76B900; font-size: 1.4rem; font-weight: 900; margin-top: 4px; }
+    .item-status-tag { 
+        display: inline-block;
+        background: rgba(118, 185, 0, 0.15); 
+        color: #76B900; 
+        padding: 3px 10px; 
+        border-radius: 6px; 
+        font-size: 0.75rem; 
+        font-weight: 800;
+        border: 1px solid rgba(118, 185, 0, 0.3);
+        margin-bottom: 5px;
+    }
+
     /* 표(DataFrame) 스타일 강제 고정 */
     [data-testid="stDataFrame"] { background-color: #111111 !important; }
     div[data-testid="stDataFrame"] div[data-baseweb="table"] div {
@@ -59,8 +91,8 @@ def add_medal_logic(df):
     df['순위'] = df['Rank'].apply(medal_icon)
     return df.drop(columns=['Rank'])
 
-# 📂 2. 데이터 로드 및 전처리 (데이터 위치 강제 매칭 버전)
-@st.cache_data(ttl=5)
+# 📂 2. 데이터 로드 및 전처리 (실시간성 강화)
+@st.cache_data(ttl=2) # 2초 캐시로 거의 실시간 반영
 def load_all_guild_data():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -76,7 +108,7 @@ def load_all_guild_data():
         df = pd.DataFrame(rows, columns=header)
         df = df[df['이름'].str.strip() != ""].copy()
         
-        # 🚨 거래소 로드 (인덱스 기반 강제 매칭)
+        # 🚨 거래소 로드 (데이터 위치 강제 매칭)
         market_sheet = None
         market_df = pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
         try:
@@ -95,20 +127,10 @@ def load_all_guild_data():
         def to_int(val):
             clean = re.sub(r'[^0-9]', '', str(val))
             return int(clean) if clean else 0
-        def parse_growth(val):
-            percent = re.search(r'([\d\.]+)(?=%)', str(val))
-            value = re.search(r'\(([^)]+)\)', str(val))
-            p_val = float(percent.group(1)) if percent else 0.0
-            v_val = value.group(1) if value else "0"
-            return p_val, v_val
-
         df['전투력_v'] = df['전투력'].apply(to_int)
         df['누계_v'] = df['누계'].apply(to_int)
         df['분배금_v'] = df['분배금'].apply(to_int)
-        growth_parsed = df['성장'].apply(parse_growth)
-        df['성장_v'] = [x[0] for x in growth_parsed]
-        df['성장_표시'] = [f"{x[0]}% ({x[1]})" for x in growth_parsed]
-
+        
         if '정산상태' in df.columns:
             df['정산상태'] = df['정산상태'].apply(lambda x: "정산완료" if str(x).strip() == "정산완료" else "미정산")
         else:
@@ -126,12 +148,12 @@ spreadsheet, worksheet, df, sheet_header, market_worksheet, market_df = load_all
 # 📊 3. 화면 구성
 if isinstance(df, pd.DataFrame):
     with st.sidebar:
-        st.markdown("<div style='text-align:center; padding-bottom:10px;'><img src='https://img.icons8.com/neon/150/shield.png' width='75'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center; padding-bottom:15px;'><img src='https://img.icons8.com/neon/150/shield.png' width='75'></div>", unsafe_allow_html=True)
         
-        # 🕒 보스 타이머 (줄 간격 최적화)
+        # 🕒 보스 타이머
         timer_html = """
-        <div style="background:linear-gradient(135deg,#151515,#0a0a0a); border:1px solid #76B90066; padding:15px; border-radius:10px; text-align:center; line-height:1.2;">
-            <div style="font-size:11px; color:#888; font-weight:bold; margin-bottom:5px;">NEXT BOSS RADAR</div>
+        <div style="background:linear-gradient(135deg,#151515,#0a0a0a); border:1px solid #76B90066; padding:15px; border-radius:10px; text-align:center;">
+            <div style="font-size:11px; color:#888; font-weight:bold; margin-bottom:5px;">NEXT BOSS SCAN</div>
             <div id="sidebar-timer" style="font-size:32px; font-weight:900; color:#76B900; font-family:monospace;">00:00:00</div>
         </div>
         <script>
@@ -142,43 +164,84 @@ if isinstance(df, pd.DataFrame):
             if(!t){t=new Date(n); t.setDate(n.getDate()+1); t.setHours(14,0,0,0);}
             const d = t-n;
             const h = String(Math.floor(d/3600000)).padStart(2,'0');
-            const m = String(Math.floor((d%3600000)/60000)).padStart(2,'0');
-            const s = String(Math.floor((d%60000)/1000)).padStart(2,'0');
+            const m = String(Math.floor((d%3600000) / 60000)).padStart(2,'0');
+            const s = String(Math.floor((d%60000) / 1000)).padStart(2,'0');
             document.getElementById('sidebar-timer').innerText = h+":"+m+":"+s;
         } setInterval(up,1000); up();
         </script>
         """
         components.html(timer_html, height=120)
         
-        # 🚨 리로드 버튼 상시 노출
+        # 🔄 수동 리로드 버튼 (백업용)
         if st.button("🔄 최신 데이터 불러오기", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
 
         st.divider()
-        st.subheader("📊 연합 실시간 지표")
-        c1, c2 = st.columns(2)
-        c1.metric("인원", f"{len(df)}명")
-        c2.metric("총투력", f"{df['전투력_v'].sum():,}")
-        st.divider()
-        
-        youtube_links = [("가미가미 TV", "https://www.youtube.com/@gamigami706", "youtube-play"),
-                         ("왕코 방송국", "https://www.youtube.com/@스트리머왕코", "controller"),
-                         ("아이엠솔이", "https://www.youtube.com/@아이엠솔이", "microphone")]
-        for name, url, icon in youtube_links:
-            y1, y2 = st.columns([1, 4])
-            with y1: st.image(f"https://img.icons8.com/neon/96/{icon}.png", width=22)
-            with y2: st.link_button(name, url, use_container_width=True)
-            
-        st.divider()
         with st.expander("🔐 ADMIN", expanded=False):
             admin_pw = st.text_input("PASSWORD", type="password")
             is_admin = (admin_pw == "1234") 
 
-    # --- 메인 영역 ---
     st.title("🛡️ COMMAND CENTER")
-    tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
+    tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
+
     TABLE_HEIGHT = 700 
+
+    with tabs[2]: # 🛍️ 문파 거래소 (카드형 레이아웃 및 자동 반영)
+        st.subheader("🛍️ 문파 전용 아이템 거래소")
+        
+        m_col1, m_col2 = st.columns([1, 2])
+        
+        with m_col1:
+            st.markdown("### 📝 아이템 등록")
+            with st.form("market_form", clear_on_submit=True):
+                m_seller = st.text_input("판매자 닉네임", placeholder="내 아이디")
+                m_item = st.text_input("아이템 이름", placeholder="아이템명")
+                m_price = st.text_input("가격", placeholder="예: 500, 무료나눔")
+                
+                if st.form_submit_button("아이템 등록하기"):
+                    if market_worksheet:
+                        # 🚨 등록 즉시 시트에 추가
+                        market_worksheet.append_row([m_seller, m_item, m_price, "판매중"])
+                        st.success("등록되었습니다!")
+                        # 🚨 캐시 삭제 후 자동 페이지 리런 (리로드를 누를 필요 없음)
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error("거래소 시트를 찾을 수 없습니다.")
+
+        with m_col2:
+            st.markdown("### 📦 매물 목록")
+            if not market_df.empty:
+                # '판매중' 상태만 필터링
+                display_items = market_df[market_df['상태'].str.contains("판매중", na=True)]
+                
+                if display_items.empty:
+                    st.info("현재 판매 중인 아이템이 없습니다.")
+                else:
+                    for idx, row in display_items.iterrows():
+                        # 🛍️ 카드형 HTML 렌더링 (사진 느낌 반영)
+                        st.markdown(f"""
+                            <div class="market-card">
+                                <div class="item-info">
+                                    <div class="item-name">{row['아이템이름']}</div>
+                                    <div class="item-seller">Seller: {row['판매자']}</div>
+                                </div>
+                                <div class="item-price-area">
+                                    <div class="item-status-tag">판매중</div>
+                                    <div class="item-price">{row['가격']} 💎</div>
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # 관리자 모드 버튼
+                        if is_admin:
+                            if st.button(f"🗑️ {row['아이템이름']} 삭제", key=f"del_{idx}"):
+                                market_worksheet.delete_rows(idx + 2)
+                                st.cache_data.clear()
+                                st.rerun()
+            else:
+                st.info("등록된 매물이 없습니다.")
 
     with tabs[0]: # ⚔️ 보스 현황
         max_val = df['누계_v'].max()
@@ -200,55 +263,19 @@ if isinstance(df, pd.DataFrame):
     with tabs[1]: # 🛡️ 투력 현황
         cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
         cp_rank['전투력_표시'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
-        st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
+        st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
-    with tabs[2]: # 🔥 성장 랭킹
-        growth_rank = add_medal_logic(df.sort_values(by="성장_v", ascending=False))
-        st.dataframe(growth_rank[['순위', '문파', '이름', '성장_표시', '전투력']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
-
-    with tabs[3]: # 🏆 직업별 랭킹
-        job_list = sorted(df['직업'].unique())
-        selected_job = st.selectbox("직업 선택", job_list)
-        job_rank = add_medal_logic(df[df['직업'] == selected_job].sort_values(by="전투력_v", ascending=False))
-        job_rank['전투력_표시'] = job_rank['전투력_v'].apply(lambda x: f"{x:,}")
-        st.dataframe(job_rank[['순위', '문파', '이름', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
-
-    with tabs[4]: # 🛍️ 문파 거래소
-        st.subheader("🛍️ 문파 전용 아이템 거래소")
-        m_col1, m_col2 = st.columns([1, 2])
-        with m_col1:
-            with st.form("market_form", clear_on_submit=True):
-                m_seller = st.text_input("판매자 닉네임")
-                m_item = st.text_input("아이템 이름")
-                m_price = st.text_input("가격 (예: 무료나눔, 500다이아)")
-                if st.form_submit_button("아이템 등록하기"):
-                    if market_worksheet:
-                        market_worksheet.append_row([m_seller, m_item, m_price, "판매중"])
-                        st.success("등록 완료! 상단 리로드를 눌러주세요.")
-                        st.cache_data.clear()
-        with m_col2:
-            if not market_df.empty:
-                if is_admin:
-                    edited = st.data_editor(market_df, use_container_width=True, hide_index=True, height=500)
-                    if st.button("💾 거래소 저장"):
-                        market_worksheet.clear()
-                        market_worksheet.update([["판매자", "아이템이름", "가격", "상태"]] + edited.values.tolist())
-                        st.rerun()
-                else:
-                    st.dataframe(market_df[market_df['상태'].str.contains("판매중", na=True)], use_container_width=True, hide_index=True, height=500)
-
-    with tabs[5]: # 📊 분석 통계
-        st.subheader("📊 연합 실시간 분석")
+    with tabs[3]: # 📊 분석 통계
         sc1, sc2, sc3 = st.columns(3)
         sc1.metric("통합 전투력", f"{df['전투력_v'].sum():,}")
         sc2.metric("평균 전투력", f"{int(df['전투력_v'].mean()):,}")
-        sc3.metric("평균 성장률", f"{df['성장_v'].mean():.2f}%")
+        sc3.metric("총 인원", f"{len(df)}명")
         st.divider()
         g1, g2 = st.columns(2)
         with g1: st.plotly_chart(px.pie(df, names='문파', values='전투력_v', hole=0.6, title="문파별 투력 비중"), use_container_width=True)
         with g2: st.plotly_chart(px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포"), use_container_width=True)
 
-    with tabs[6]: # 💰 정산 현황
+    with tabs[4]: # 💰 정산 현황
         income = df['분배금_v'].sum()
         paid = df[df['정산상태'] == "정산완료"]['분배금_v'].sum()
         st.subheader("💰 정산 관리 대시보드")
