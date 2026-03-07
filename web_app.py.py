@@ -71,7 +71,7 @@ def add_medal_logic(df):
     df['순위'] = df['Rank'].apply(medal_icon)
     return df.drop(columns=['Rank'])
 
-# 📂 2. 데이터 로드
+# 📂 2. 데이터 로드 및 전처리 (전 기능 복구)
 @st.cache_data(ttl=2)
 def load_all_guild_data():
     try:
@@ -81,12 +81,14 @@ def load_all_guild_data():
         client = gspread.authorize(creds)
         spreadsheet = client.open("조협오산오살")
         
+        # 메인 시트 로드
         sheet = spreadsheet.sheet1
         all_data = sheet.get_all_values()
         header, rows = all_data[6], all_data[7:]
         df = pd.DataFrame(rows, columns=header)
         df = df[df['이름'].str.strip() != ""].copy()
         
+        # 거래소 시트 로드
         market_sheet = None
         market_df = pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
         try:
@@ -100,22 +102,30 @@ def load_all_guild_data():
                 market_df = pd.DataFrame(processed_rows, columns=["판매자", "아이템이름", "가격", "상태"])
         except: pass
 
+        # 숫자 및 성장률 데이터 정제
         def to_int(val):
             clean = re.sub(r'[^0-9]', '', str(val))
             return int(clean) if clean else 0
         def parse_growth(val):
             percent = re.search(r'([\d\.]+)(?=%)', str(val))
             value = re.search(r'\(([^)]+)\)', str(val))
-            return float(percent.group(1)) if percent else 0.0, value.group(1) if value else "0"
+            p_val = float(percent.group(1)) if percent else 0.0
+            v_val = value.group(1) if value else "0"
+            return p_val, v_val
 
         df['전투력_v'] = df['전투력'].apply(to_int)
         df['누계_v'] = df['누계'].apply(to_int)
         df['분배금_v'] = df['분배금'].apply(to_int)
+        
         growth_parsed = df['성장'].apply(parse_growth)
         df['성장_v'] = [x[0] for x in growth_parsed]
         df['성장_표시'] = [f"{x[0]}% ({x[1]})" for x in growth_parsed]
-        df['정산상태'] = df['정산상태'].apply(lambda x: "정산완료" if str(x).strip() == "정산완료" else "미정산")
         
+        if '정산상태' in df.columns:
+            df['정산상태'] = df['정산상태'].apply(lambda x: "정산완료" if str(x).strip() == "정산완료" else "미정산")
+        else:
+            df['정산상태'] = "미정산"
+
         def is_p(val): return str(val).strip().lower() in ['o', 'ㅇ', 'v']
         df['14_p'], df['18_p'], df['22_p'] = df['14시'].apply(is_p), df['18시'].apply(is_p), df['22시'].apply(is_p)
         
@@ -179,7 +189,8 @@ if isinstance(df, pd.DataFrame):
     st.title("🛡️ COMMAND CENTER")
     tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
 
-    # --- 각 탭 로직 ---
+    TABLE_HEIGHT = 700 
+
     with tabs[0]: # ⚔️ 보탐 현황
         max_val = df['누계_v'].max()
         if max_val > 0:
@@ -195,25 +206,26 @@ if isinstance(df, pd.DataFrame):
         st.divider()
         boss_vis = df.copy()
         for col in ['14시', '18시', '22시']: boss_vis[col] = boss_vis[col].apply(lambda x: "✅" if str(x).strip().lower() in ['o', 'ㅇ', 'v'] else "──")
-        st.dataframe(add_medal_logic(boss_vis.sort_values(by="누계_v", ascending=False))[['순위', '문파', '이름', '14시', '18시', '22시', '누계_v']], use_container_width=True, hide_index=True, height=700)
+        st.dataframe(add_medal_logic(boss_vis.sort_values(by="누계_v", ascending=False))[['순위', '문파', '이름', '14시', '18시', '22시', '누계_v']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
     with tabs[1]: # 🛡️ 투력 현황
         cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
         cp_rank['전투력_표시'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
-        st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True, height=700)
+        st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
     with tabs[2]: # 🔥 성장 랭킹
         growth_rank = add_medal_logic(df.sort_values(by="성장_v", ascending=False))
-        st.dataframe(growth_rank[['순위', '문파', '이름', '성장_표시', '전투력']], use_container_width=True, hide_index=True, height=700)
+        st.dataframe(growth_rank[['순위', '문파', '이름', '성장_표시', '전투력']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
     with tabs[3]: # 🏆 직업별 랭킹
         job_list = sorted(df['직업'].unique())
         selected_job = st.selectbox("직업 선택", job_list)
         job_rank = add_medal_logic(df[df['직업'] == selected_job].sort_values(by="전투력_v", ascending=False))
         job_rank['전투력_표시'] = job_rank['전투력_v'].apply(lambda x: f"{x:,}")
-        st.dataframe(job_rank[['순위', '문파', '이름', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True, height=700)
+        st.dataframe(job_rank[['순위', '문파', '이름', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
-    with tabs[4]: # 🛍️ 문파 거래소 (카드형 & 자동 리런)
+    with tabs[4]: # 🛍️ 문파 거래소 (카드형 레이아웃 및 자동 리런)
+        st.subheader("🛍️ 문파 전용 아이템 거래소")
         m_col1, m_col2 = st.columns([1, 2])
         with m_col1:
             with st.form("market_form", clear_on_submit=True):
@@ -268,7 +280,7 @@ if isinstance(df, pd.DataFrame):
         money_rank = add_medal_logic(df[df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
         money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,} 다이아")
         if is_admin:
-            edited_df = st.data_editor(money_rank[['순위', '이름', '분배금_표시', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True, height=700)
+            edited_df = st.data_editor(money_rank[['순위', '이름', '분배금_표시', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True, height=TABLE_HEIGHT)
             if st.button("💾 정산 상태 저장"):
                 idx = sheet_header.index("정산상태") + 1
                 for _, row in edited_df.iterrows():
@@ -278,9 +290,11 @@ if isinstance(df, pd.DataFrame):
                 st.rerun()
         else:
             money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
-            st.dataframe(money_rank[['순위', '문파', '이름', '분배금_표시', '상태']], use_container_width=True, hide_index=True, height=700)
+            st.dataframe(money_rank[['순위', '문파', '이름', '분배금_표시', '상태']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
-else: st.error("데이터 로드 실패")
+else:
+    st.error(f"데이터 로드 실패: {df}")
+
 
 
 
