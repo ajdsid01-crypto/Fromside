@@ -201,7 +201,7 @@ if isinstance(df, pd.DataFrame):
             boss_vis[col] = boss_vis[col].apply(lambda x: "✅" if str(x).strip().lower() in ['o', 'ㅇ', 'v'] else "──")
         boss_rank = add_medal_logic(boss_vis.sort_values(by="누계_v", ascending=False))
         st.dataframe(boss_rank[['순위', '문파', '이름', '14시', '18시', '22시', '누계_v']], use_container_width=True, hide_index=True,
-                     column_config={"누계_v": st.column_config.ProgressColumn("참여 성실도", format="%d회", min_value=0, max_value=int(max_val) if max_val > 0 else 21)})
+                     column_config={"누계_v": st.column_config.ProgressColumn("참여도", format="%d회", min_value=0, max_value=int(max_val) if max_val > 0 else 21)})
 
     with tabs[1]:
         cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
@@ -251,6 +251,7 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error("데이터 로드 실패")
+
 
 
 
