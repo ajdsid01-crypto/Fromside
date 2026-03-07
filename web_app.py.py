@@ -6,7 +6,7 @@ import re
 import plotly.express as px
 import streamlit.components.v1 as components
 
-# 1. 🎨 [디자인] NVIDIA 프리미엄 다크 테마 및 컴팩트 레이아웃
+# 1. 🎨 [디자인] NVIDIA 프리미엄 다크 테마 및 균형 잡힌 레이아웃
 st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="wide")
 
 st.markdown("""
@@ -14,11 +14,12 @@ st.markdown("""
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
     h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; text-align: left !important; }
     
-    /* 사이드바 여백 최적화 */
+    /* 사이드바 여백 최적화: 답답함 해소 및 스크롤 최소화 */
     [data-testid="stSidebar"] > div:first-child { padding-top: 20px !important; }
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.8rem !important; }
     .stDivider { margin: 1rem 0 !important; }
     
+    /* 표(DataFrame) 스타일 강제 고정 */
     [data-testid="stDataFrame"] { background-color: #111111 !important; }
     div[data-testid="stDataFrame"] div[data-baseweb="table"] div {
         background-color: #111111 !important;
@@ -26,6 +27,7 @@ st.markdown("""
         text-align: left !important;
     }
 
+    /* MVP 및 참여자 명단 스타일 */
     .mvp-bar {
         background: linear-gradient(90deg, #111, #1a1a1a);
         border: 1px solid #76B900;
@@ -58,8 +60,8 @@ def add_medal_logic(df):
     df['순위'] = df['Rank'].apply(medal_icon)
     return df.drop(columns=['Rank'])
 
-# 📂 2. 데이터 로드 및 전처리
-@st.cache_data(ttl=10)
+# 📂 2. 데이터 로드 및 정밀 전처리
+@st.cache_data(ttl=5)
 def load_all_guild_data():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -68,21 +70,27 @@ def load_all_guild_data():
         client = gspread.authorize(creds)
         spreadsheet = client.open("조협오산오살")
         
-        # 메인 시트 (연합원 명단)
+        # 메인 시트 로드
         sheet = spreadsheet.sheet1
         all_data = sheet.get_all_values()
         header, rows = all_data[6], all_data[7:]
         df = pd.DataFrame(rows, columns=header)
         df = df[df['이름'].str.strip() != ""].copy()
         
-        # 거래소 시트 로드 로직 (버그 방지형)
+        # 🚨 거래소 시트 로드 (헤더 강제 고정 및 오류 방지)
         try:
             market_sheet = spreadsheet.worksheet("거래소")
             m_values = market_sheet.get_all_values()
+            target_cols = ["판매자", "아이템이름", "가격", "상태"]
+            
             if len(m_values) > 1:
-                market_df = pd.DataFrame(m_values[1:], columns=m_values[0])
+                processed_rows = []
+                for row in m_values[1:]:
+                    new_row = (row + [""] * 4)[:4] # 열 개수 강제 맞춤
+                    processed_rows.append(new_row)
+                market_df = pd.DataFrame(processed_rows, columns=target_cols)
             else:
-                market_df = pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
+                market_df = pd.DataFrame(columns=target_cols)
         except:
             market_sheet, market_df = None, pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
 
@@ -119,8 +127,8 @@ spreadsheet, worksheet, df, sheet_header, market_worksheet, market_df = load_all
 
 # 📊 3. 화면 구성
 if isinstance(df, pd.DataFrame):
+    # --- 사이드바 영역 (여백 및 시각성 최적화) ---
     with st.sidebar:
-        # [로고 및 타이머 영역]
         st.markdown(f"""
             <div style="text-align: center; padding: 15px 0 20px 0;">
                 <img src="https://img.icons8.com/neon/150/shield.png" width="80" style="filter: drop-shadow(0 0 8px #76B900);">
@@ -173,8 +181,8 @@ if isinstance(df, pd.DataFrame):
             
         st.divider()
         with st.expander("🔐 ADMIN", expanded=False):
-            admin_pw = st.text_input("PASSWORD", type="password")
-            is_admin = (admin_pw == "1234") 
+            admin_pw = st.text_input("PW", type="password")
+            is_admin = (admin_pw == "1234") # 비밀번호 수정 위치
             if st.button("SYSTEM RELOAD"):
                 st.cache_data.clear()
                 st.rerun()
@@ -219,7 +227,7 @@ if isinstance(df, pd.DataFrame):
         cp_rank['전투력_표시'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
         st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
-    with tabs[2]: # 🔥 성장 랭킹
+    with tabs[2]: # 🔥 성장 랭킹 (높이 확장 적용)
         growth_rank = add_medal_logic(df.sort_values(by="성장_v", ascending=False))
         st.dataframe(growth_rank[['순위', '문파', '이름', '성장_표시', '전투력']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
@@ -230,10 +238,9 @@ if isinstance(df, pd.DataFrame):
         job_rank['전투력_표시'] = job_rank['전투력_v'].apply(lambda x: f"{x:,}")
         st.dataframe(job_rank[['순위', '문파', '이름', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
-    with tabs[4]: # 🛍️ 문파 거래소
+    with tabs[4]: # 🛍️ 문파 거래소 (데이터 오류 방어 로직 강화)
         st.subheader("🛍️ 문파 전용 아이템 거래소")
         m_col1, m_col2 = st.columns([1, 2])
-        
         with m_col1:
             st.markdown("### 📝 아이템 등록")
             with st.form("market_form", clear_on_submit=True):
@@ -241,36 +248,27 @@ if isinstance(df, pd.DataFrame):
                 m_item = st.text_input("아이템 이름")
                 m_price = st.text_input("가격 (예: 무료나눔, 500다이아)")
                 submit_market = st.form_submit_button("아이템 등록하기")
-                
                 if submit_market and market_worksheet:
                     new_row = [m_seller, m_item, m_price, "판매중"]
                     market_worksheet.append_row(new_row)
-                    st.success("아이템이 등록되었습니다! [RELOAD]를 누르세요.")
+                    st.success("등록 완료! 상단 RELOAD를 누르세요.")
                     st.cache_data.clear()
-
         with m_col2:
             st.markdown("### 📦 매물 목록")
             if not market_df.empty:
-                # 데이터 정제 (공백 제거)
-                market_df.columns = [c.strip() for c in market_df.columns]
-                
                 if is_admin:
-                    edited_market = st.data_editor(market_df, use_container_width=True, hide_index=True, height=500,
-                                                   column_config={"상태": st.column_config.SelectboxColumn("상태", options=["판매중", "판매완료"])})
-                    if st.button("💾 거래소 업데이트"):
+                    edited_market = st.data_editor(market_df, use_container_width=True, hide_index=True, height=500)
+                    if st.button("💾 거래소 전체 저장"):
+                        header_list = [["판매자", "아이템이름", "가격", "상태"]]
                         market_worksheet.clear()
-                        market_worksheet.update([market_df.columns.values.tolist()] + edited_market.values.tolist())
-                        st.cache_data.clear()
+                        market_worksheet.update(header_list + edited_market.values.tolist())
                         st.rerun()
                 else:
-                    # '판매중' 상태만 필터링해서 보여주기
-                    if '상태' in market_df.columns:
-                        display_m = market_df[market_df['상태'].str.contains("판매중", na=False)]
-                        st.dataframe(display_m, use_container_width=True, hide_index=True, height=500)
-                    else:
-                        st.dataframe(market_df, use_container_width=True, hide_index=True, height=500)
+                    # '판매중' 글자가 포함되어 있거나 상태가 빈 것만 보여줌
+                    display_m = market_df[(market_df['상태'].str.contains("판매중", na=True)) | (market_df['상태'] == "")]
+                    st.dataframe(display_m, use_container_width=True, hide_index=True, height=500)
             else:
-                st.warning("등록된 아이템이 없습니다. 1행 헤더를 확인하세요.")
+                st.info("현재 등록된 매물이 없습니다. 시트 1행이 [판매자, 아이템이름, 가격, 상태]인지 확인하세요.")
 
     with tabs[5]: # 📊 분석 통계
         sc1, sc2, sc3 = st.columns(3)
@@ -286,12 +284,12 @@ if isinstance(df, pd.DataFrame):
             fig_bar = px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포", color_discrete_sequence=['#76B900'])
             st.plotly_chart(fig_bar, use_container_width=True)
 
-    with tabs[6]: # 💰 정산 현황
-        # [정산 요약 대시보드]
+    with tabs[6]: # 💰 정산 현황 (분배 검증 및 대시보드)
         total_income = int(df['분배금_v'].sum())
         completed_payouts = df[df['정산상태'] == "정산완료"]['분배금_v'].sum()
         remaining_payouts = total_income - completed_payouts
         
+        st.subheader("💰 이번 주 연합 정산 관리")
         m1, m2, m3 = st.columns(3)
         m1.metric("총 분배금", f"{total_income:,} 💎")
         m2.metric("정산 완료", f"{completed_payouts:,} 💎")
@@ -315,10 +313,6 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error("데이터 로드 실패")
-
-
-
-
 
 
 
