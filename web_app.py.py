@@ -14,13 +14,11 @@ st.markdown("""
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
     h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; text-align: left !important; }
     
-    /* 표(DataFrame) 스타일 강제 고정 */
     [data-testid="stDataFrame"] { background-color: #111111 !important; }
     div[data-testid="stDataFrame"] div[data-baseweb="table"] div {
         background-color: #111111 !important;
         color: white !important;
         text-align: left !important;
-        justify-content: flex-start !important;
     }
 
     /* 🏆 슬림 MVP 바 스타일 */
@@ -34,7 +32,6 @@ st.markdown("""
         box-shadow: 0 0 10px rgba(118, 185, 0, 0.2);
     }
     
-    /* 참여자 명단 박스 */
     .participant-box {
         background-color: #111;
         border-left: 4px solid #76B900;
@@ -58,7 +55,7 @@ def add_medal_logic(df):
     df['순위'] = df['Rank'].apply(medal_icon)
     return df.drop(columns=['Rank'])
 
-# 📂 2. 데이터 로드 및 전처리
+# 📂 2. 데이터 로드 및 정밀 전처리
 @st.cache_data(ttl=10)
 def load_all_guild_data():
     try:
@@ -74,6 +71,7 @@ def load_all_guild_data():
         df = pd.DataFrame(rows, columns=header)
         df = df[df['이름'].str.strip() != ""].copy()
         
+        # 숫자 추출 함수
         def to_int(val):
             clean = re.sub(r'[^0-9]', '', str(val))
             return int(clean) if clean else 0
@@ -93,6 +91,13 @@ def load_all_guild_data():
         df['성장_v'] = [x[0] for x in growth_parsed]
         df['성장_표시'] = [f"{x[0]}% ({x[1]})" for x in growth_parsed]
 
+        # 💰 [업데이트] 정산상태 기본값 설정 로직
+        if '정산상태' in df.columns:
+            # '정산완료'가 아니면 전부 '미정산'으로 표시
+            df['정산상태'] = df['정산상태'].apply(lambda x: "정산완료" if str(x).strip() == "정산완료" else "미정산")
+        else:
+            df['정산상태'] = "미정산"
+
         def is_p(val): return str(val).strip().lower() in ['o', 'ㅇ', 'v']
         df['14_p'], df['18_p'], df['22_p'] = df['14시'].apply(is_p), df['18시'].apply(is_p), df['22시'].apply(is_p)
         
@@ -106,7 +111,6 @@ spreadsheet, worksheet, df, sheet_header = load_all_guild_data()
 if isinstance(df, pd.DataFrame):
     # --- 사이드바 영역 ---
     with st.sidebar:
-        # 💎 전술적 레이아웃: 로고 + 상태 표시
         st.markdown(f"""
             <div style="text-align: center; padding: 10px 0 10px 0;">
                 <img src="https://img.icons8.com/neon/150/shield.png" width="85" style="filter: drop-shadow(0 0 8px #76B900);">
@@ -117,38 +121,21 @@ if isinstance(df, pd.DataFrame):
             </div>
         """, unsafe_allow_html=True)
 
-        # 🕒 프리미엄 실시간 타이머 (줄 간격 및 가독성 최적화)
+        # 🕒 줄 간격과 여백을 조정한 실시간 타이머
         timer_html = """
         <div id="boss-timer-hq" style="
             background: linear-gradient(180deg, #121212 0%, #080808 100%);
             border: 1px solid rgba(118, 185, 0, 0.4);
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-            font-family: sans-serif;
-            line-height: 1.1;
+            padding: 15px; border-radius: 8px; text-align: center; font-family: sans-serif; line-height: 1.1;
         ">
             <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 5px;">
                 <div style="width: 6px; height: 6px; background: #ff4b4b; border-radius: 50%; animation: blink 1s infinite;"></div>
                 <span id="target-label" style="font-size: 11px; font-weight: bold; color: #888; letter-spacing: 1px;">--:-- BOSS</span>
             </div>
-            
-            <div id="countdown-val" style="
-                font-size: 36px; 
-                font-weight: 900; 
-                color: #76B900; 
-                font-family: 'Courier New', monospace;
-                margin: 2px 0;
-                text-shadow: 0 0 10px rgba(118, 185, 0, 0.5);
-            ">00:00:00</div>
-            
+            <div id="countdown-val" style="font-size: 36px; font-weight: 900; color: #76B900; font-family: 'Courier New', monospace; margin: 2px 0; text-shadow: 0 0 10px rgba(118, 185, 0, 0.5);">00:00:00</div>
             <div style="font-size: 9px; color: #444; letter-spacing: 2px; margin-top: 5px;">REMAINING TIME</div>
         </div>
-
-        <style>
-            @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
-        </style>
-
+        <style> @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } } </style>
         <script>
         function updateTimer() {
             const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"}));
@@ -158,14 +145,11 @@ if isinstance(df, pd.DataFrame):
                 let t = new Date(now); t.setHours(hour, 0, 0, 0);
                 if (now < t) { target = t; break; }
             }
-            if (!target) {
-                target = new Date(now); target.setDate(now.getDate() + 1); target.setHours(14, 0, 0, 0);
-            }
+            if (!target) { target = new Date(now); target.setDate(now.getDate() + 1); target.setHours(14, 0, 0, 0); }
             const diff = target - now;
             const h = String(Math.floor(diff / 3600000)).padStart(2, '0');
             const m = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0');
             const s = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
-
             document.getElementById('target-label').innerText = target.getHours() + ":00 NEXT BOSS";
             document.getElementById('countdown-val').innerText = h + ":" + m + ":" + s;
         }
@@ -181,7 +165,7 @@ if isinstance(df, pd.DataFrame):
         c2.metric("총투력", f"{df['전투력_v'].sum():,}")
         st.divider()
         
-        st.subheader("📺 연합 방송 센터")
+        # 유튜브 방송 센터
         youtube_links = [("가미가미 TV", "https://www.youtube.com/@gamigami706", "youtube-play"),
                          ("왕코 방송국", "https://www.youtube.com/@스트리머왕코", "controller"),
                          ("아이엠솔이", "https://www.youtube.com/@아이엠솔이", "microphone")]
@@ -193,16 +177,17 @@ if isinstance(df, pd.DataFrame):
         st.divider()
         with st.expander("🔐 ADMIN"):
             admin_pw = st.text_input("PW", type="password")
-            is_admin = (admin_pw == "dhkdrkthfdl123") 
+            # 🚨 비밀번호 설정 위치 (여기서 "1234"를 원하는 비번으로 바꾸세요)
+            is_admin = (admin_pw == "1234") 
             if st.button("RELOAD"):
                 st.cache_data.clear()
                 st.rerun()
 
     # --- 메인 영역 ---
-    st.title("🛡️ 조협클래식 오늘만산다/오늘만살자")
+    st.title("🛡️ ALLIANCE COMMAND CENTER")
     
     # 🔍 검색창
-    search_q = st.text_input("🔍 문파원 검색", placeholder="닉네임 입력")
+    search_q = st.text_input("🔍 연합원 검색", placeholder="닉네임 입력")
     if search_q:
         search_res = df[df['이름'].str.contains(search_q, na=False, case=False)].copy()
         if not search_res.empty:
@@ -217,7 +202,6 @@ if isinstance(df, pd.DataFrame):
         if max_val > 0:
             mvps = df[df['누계_v'] == max_val]['이름'].tolist()
             st.markdown(f"<div class='mvp-bar'><span style='color:#76B900; font-weight:bold;'>🏆 이번 주 보탐 MVP : </span><span style='color:white;'>{', '.join(mvps)}</span> <small>({max_val}회 참여)</small></div>", unsafe_allow_html=True)
-        
         p_cols = st.columns(3)
         t_info = [("14시", "14_p"), ("18시", "18_p"), ("20시", "22_p")]
         for i, (t_name, p_col) in enumerate(t_info):
@@ -225,7 +209,6 @@ if isinstance(df, pd.DataFrame):
                 names = df[df[p_col]]['이름'].tolist()
                 st.markdown(f"#### 🕒 {t_name} ({len(names)}명)")
                 st.markdown(f"<div class='participant-box'>{', '.join(names) if names else '참여자 없음'}</div>", unsafe_allow_html=True)
-        
         st.divider()
         boss_vis = df.copy()
         for col in ['14시', '18시', '22시']:
@@ -261,14 +244,19 @@ if isinstance(df, pd.DataFrame):
             fig_pie = px.pie(df, names='문파', values='전투력_v', hole=0.6, title="문파별 투력 비중", color_discrete_map={"오늘만산다": "#76B900", "오늘만살자": "#007BFF"})
             st.plotly_chart(fig_pie, use_container_width=True)
         with g2:
-            fig_bar = px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="문파 직업 분포", color_discrete_sequence=['#76B900'])
+            fig_bar = px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포", color_discrete_sequence=['#76B900'])
             st.plotly_chart(fig_bar, use_container_width=True)
 
     with tabs[5]: # 💰 정산 현황
         money_rank = add_medal_logic(df[df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
         money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,} 다이아")
         if is_admin:
-            edited_df = st.data_editor(money_rank[['순위', '이름', '분배금_표시', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True)
+            # 관리자 전용 수정 표
+            edited_df = st.data_editor(
+                money_rank[['순위', '이름', '분배금_표시', '정산상태']], 
+                column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, 
+                disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True
+            )
             if st.button("💾 정산 결과 저장"):
                 status_idx = sheet_header.index("정산상태") + 1
                 for _, row in edited_df.iterrows():
@@ -277,6 +265,7 @@ if isinstance(df, pd.DataFrame):
                 st.cache_data.clear()
                 st.rerun()
         else:
+            # 일반 유저용 표시 표
             money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
             st.dataframe(money_rank[['순위', '문파', '이름', '분배금_표시', '상태']], use_container_width=True, hide_index=True)
 
