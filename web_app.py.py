@@ -169,7 +169,7 @@ if isinstance(df, pd.DataFrame):
                 st.rerun()
 
     # --- 메인 영역 ---
-    st.title("🛡️ 조협클래식 통합 관리 시스템")
+    st.title("🛡️ 조협클래식 오늘만산다/오늘만살자")
     
     search_q = st.text_input("🔍 캐릭터명 검색", placeholder="닉네임 입력")
     if search_q:
@@ -251,6 +251,7 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error("데이터 로드 실패")
+
 
 
 
