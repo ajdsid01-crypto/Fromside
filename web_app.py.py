@@ -1,334 +1,373 @@
-import streamlit as st
-import pandas as pd
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+import tkinter as tk
+from tkinter import ttk, messagebox
+import csv
+import os
 import re
-import plotly.express as px
-import streamlit.components.v1 as components
 from datetime import datetime
+import threading
 
-# 1. 🎨 [디자인] NVIDIA 프리미엄 다크 테마 및 레이아웃 최적화
-st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="wide")
+# 구글 API 라이브러리 체크
+try:
+    import gspread
+    GSPREAD_INSTALLED = True
+except ImportError:
+    GSPREAD_INSTALLED = False
 
-st.markdown("""
-    <style>
-    /* 🚀 상단 여백 제거 및 위치 상향 조정 */
-    .block-container {
-        padding-top: 1rem !important;      /* 상단 여백을 최소화 */
-        padding-bottom: 0rem !important;
-        padding-left: 3rem !important;
-        padding-right: 3rem !important;
-    }
-    
-    /* 스트림릿 기본 헤더 숨기기 */
-    header {
-        visibility: hidden;
-        height: 0px !important;
-    }
-
-    /* 메인 앱 배경 및 텍스트 색상 */
-    .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
-    h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; }
-    
-    /* h1 타이틀 상단 마진 추가 제거 */
-    h1 {
-        margin-top: -30px !important;
-        padding-top: 0px !important;
-    }
-
-    /* 사이드바 스타일 최적화 */
-    [data-testid="stSidebar"] > div:first-child { padding-top: 15px !important; }
-    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.8rem !important; }
-    .stDivider { margin: 0.8rem 0 !important; }
-    
-    /* 🛍️ 카드형 거래소 디자인 */
-    .market-card {
-        background: #111;
-        border: 1px solid #222;
-        border-left: 5px solid #76B900;
-        padding: 18px;
-        border-radius: 12px;
-        margin-bottom: 5px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    .sold-out-card {
-        background: #0a0a0a;
-        border-left: 5px solid #444;
-        opacity: 0.4;
-        filter: grayscale(100%);
-    }
-    .item-info { flex: 3; }
-    .item-name { color: #FFF; font-size: 1.25rem; font-weight: bold; margin-bottom: 3px; }
-    .item-price { color: #76B900; font-size: 1.15rem; font-weight: 800; margin-bottom: 6px; }
-    .item-seller { color: #888; font-size: 0.9rem; }
-    
-    .status-area { flex: 1.5; text-align: right; }
-    .status-tag { 
-        display: inline-block; padding: 4px 10px; border-radius: 6px; 
-        font-size: 0.75rem; font-weight: bold; border: 1px solid #76B900; color: #76B900;
-        margin-bottom: 12px;
-    }
-    .status-tag-sold { border-color: #555; color: #555; }
-    
-    /* 버튼 스타일 */
-    .stButton>button { width: 100%; border-radius: 6px; font-size: 0.85rem !important; height: 35px; }
-
-    /* 표 스타일 */
-    [data-testid="stDataFrame"] { background-color: #111111 !important; }
-    div[data-testid="stDataFrame"] div[data-baseweb="table"] div {
-        background-color: #111111 !important; color: white !important; text-align: left !important;
-    }
-
-    .mvp-bar {
-        background: linear-gradient(90deg, #111, #1a1a1a);
-        border: 1px solid #76B900; padding: 10px 20px; border-radius: 8px; text-align: center; margin-bottom: 20px;
-    }
-    .participant-box {
-        background-color: #111; border-left: 4px solid #76B900; padding: 10px; border-radius: 5px; margin-bottom: 10px; min-height: 70px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-# 🏆 순위 메달 부여 함수
-def add_medal_logic(df):
-    df = df.reset_index(drop=True)
-    df.insert(0, 'Rank', range(1, len(df) + 1))
-    def medal_icon(rank):
-        if rank == 1: return "🥇 1위"
-        elif rank == 2: return "🥈 2위"
-        elif rank == 3: return "🥉 3위"
-        else: return f"{rank}위"
-    df['순위'] = df['Rank'].apply(medal_icon)
-    return df.drop(columns=['Rank'])
-
-# 📂 2. 데이터 로드 및 전처리
-@st.cache_data(ttl=2)
-def load_all_guild_data():
-    try:
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds_info = st.secrets["gcp_service_account"]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, scope)
-        client = gspread.authorize(creds)
-        spreadsheet = client.open("조협오산오살")
+class GuildManagerApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("조선협객전 클래식 - [제네시스 마스터] v11.5")
+        self.root.geometry("1450x980")
         
-        sheet = spreadsheet.sheet1
-        all_data = sheet.get_all_values()
-        header, rows = all_data[6], all_data[7:]
-        df = pd.DataFrame(rows, columns=header)
-        df = df[df['이름'].str.strip() != ""].copy()
+        # 🎨 테마 설정
+        self.bg_color = "#050505"; self.fg_color = "#FFFFFF"; self.neon_green = "#76B900"
+        self.color_gold = "#FFD700"; self.color_silver = "#C0C0C0"; self.color_bronze = "#CD7F32"
+        self.root.configure(bg=self.bg_color)
         
-        market_sheet = spreadsheet.worksheet("거래소")
-        m_values = market_sheet.get_all_values()
-        if len(m_values) > 1:
-            market_df = pd.DataFrame(m_values[1:], columns=["판매자", "아이템이름", "가격", "상태"])
-        else:
-            market_df = pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
+        self.class_colors = {"검객": "#FF4500", "궁수": "#32CD32", "도사": "#00CED1", "승려": "#FFD700", "투사": "#BA55D3", "포수": "#F8F8FF"}
+        self.sheet_name = "조협오산오살"
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        self.data_file = os.path.join(current_dir, "guild_integrated_master.csv")
+        self.credentials_file = os.path.join(current_dir, "credentials.json")
+        
+        self.game_classes = ["검객", "궁수", "도사", "승려", "투사", "포수"]
+        self.guilds = ["오늘만산다", "오늘만살자"]
+        
+        self.participants = {}; self.class_trees = {} 
+        self.sort_history = {} 
 
-        def to_int(val):
-            clean = re.sub(r'[^0-9]', '', str(val))
-            return int(clean) if clean else 0
+        self.setup_styles(); self.create_widgets(); self.load_data() 
+        self.root.after(100, self.refresh_all_views) 
         
-        def parse_growth(val):
-            percent = re.search(r'([\d\.]+)(?=%)', str(val))
-            value = re.search(r'\(([^)]+)\)', str(val))
-            p_val = float(percent.group(1)) if percent else 0.0
-            v_val = value.group(1) if value else "0"
-            return p_val, v_val
+        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
+        self.root.bind("<Configure>", self.on_window_resize)
 
-        df['전투력_v'] = df['전투력'].apply(to_int)
-        df['누계_v'] = df['누계'].apply(to_int)
-        df['분배금_v'] = df['분배금'].apply(to_int)
-        
-        growth_parsed = df['성장'].apply(parse_growth)
-        df['성장_v'] = [x[0] for x in growth_parsed]
-        df['성장_표시'] = [f"{x[0]}% ({x[1]})" for x in growth_parsed]
-        
-        if '정산상태' in df.columns:
-            df['정산상태'] = df['정산상태'].apply(lambda x: "정산완료" if str(x).strip() == "정산완료" else "미정산")
-        else:
-            df['정산상태'] = "미정산"
+    def setup_styles(self):
+        style = ttk.Style(); style.theme_use('clam')
+        style.configure("TFrame", background=self.bg_color)
+        style.configure("TLabelframe", background=self.bg_color, foreground=self.neon_green, bordercolor="#444444")
+        style.configure("TLabelframe.Label", background=self.bg_color, foreground=self.neon_green, font=("Arial", 11, "bold"))
+        style.configure("TLabel", background=self.bg_color, foreground=self.fg_color)
+        style.configure("TButton", background=self.neon_green, foreground="black", font=("Arial", 10, "bold"))
+        style.configure("Sync.TButton", background="#007BFF", foreground="white", font=("Arial", 10, "bold"))
+        style.configure("Treeview", background="#151515", foreground="#FFFFFF", fieldbackground="#151515", borderwidth=0, rowheight=35)
+        style.configure("Treeview.Heading", background="#000000", foreground=self.neon_green, font=("Arial", 10, "bold"))
+        style.map("Treeview", background=[('selected', self.neon_green)], foreground=[('selected', 'black')])
+        style.configure("TNotebook", background=self.bg_color)
+        style.configure("TNotebook.Tab", background="#222222", foreground="#888888", padding=[20, 10])
+        style.map("TNotebook.Tab", background=[("selected", self.neon_green)], foreground=[("selected", "black")])
 
-        def is_p(val): return str(val).strip().lower() in ['o', 'ㅇ', 'v']
-        df['14_p'], df['18_p'], df['22_p'] = df['14시'].apply(is_p), df['18시'].apply(is_p), df['22시'].apply(is_p)
-        
-        return spreadsheet, sheet, df, header, market_sheet, market_df
-    except Exception as e:
-        return None, None, str(e), None, None, None
+    def create_widgets(self):
+        self.notebook = ttk.Notebook(self.root); self.notebook.pack(fill="both", expand=True, padx=20, pady=20)
+        self.tab_boss = ttk.Frame(self.notebook); self.tab_cp = ttk.Frame(self.notebook); self.tab_dashboard = ttk.Frame(self.notebook)
+        self.tab_rank = ttk.Frame(self.notebook); self.tab_money = ttk.Frame(self.notebook)
+        for t, txt in [(self.tab_boss, "⚔️ 출석/보스"), (self.tab_cp, "🛡️ 전력/성장"), (self.tab_dashboard, "📊 대시보드"), (self.tab_rank, "🏆 랭킹"), (self.tab_money, "💰 정산")]:
+            self.notebook.add(t, text=txt)
+        self.build_boss_tab(); self.build_cp_tab(); self.build_dashboard_tab(); self.build_rank_tab(); self.build_money_tab()
 
-spreadsheet, worksheet, df, sheet_header, market_worksheet, market_df = load_all_guild_data()
+    def build_boss_tab(self):
+        stats_f = ttk.LabelFrame(self.tab_boss, text=" [ 📊 오늘 보스 참여 현황 ] "); stats_f.pack(pady=10, padx=15, fill="x")
+        self.boss_summary_lbl = ttk.Label(stats_f, text="분석 중...", font=("Arial", 11, "bold"), foreground=self.color_gold); self.boss_summary_lbl.pack(pady=10)
+        smart_f = ttk.LabelFrame(self.tab_boss, text=" [ 📝 일괄 제어 및 구글 동기화 ] "); smart_f.pack(pady=5, padx=15, fill="x")
+        self.batch_text = tk.Text(smart_f, height=3, bg="#1a1a1a", fg="#ffffff", font=("Arial", 10)); self.batch_text.pack(side="left", padx=10, pady=10, expand=True, fill="x")
+        btn_grid = ttk.Frame(smart_f); btn_grid.pack(side="right", padx=10)
+        ttk.Button(btn_grid, text="☁️ 구글 동기화", width=12, style="Sync.TButton", command=self.trigger_google_sync).pack(pady=2)
+        for slot in ["14:00", "18:00", "22:00"]:
+            ttk.Button(btn_grid, text=f"{slot} 체크", width=12, command=lambda s=slot: self.smart_batch_check(s)).pack(pady=1)
+        ttk.Button(btn_grid, text="🔥 마감", width=12, command=self.reset_daily_checks).pack(pady=5)
+        
+        cols = ("문파", "이름", "14시", "18시", "22시", "총 누적")
+        self.boss_tree = ttk.Treeview(self.tab_boss, columns=cols, show="headings", height=18)
+        for c in cols: 
+            self.boss_tree.heading(c, text=c, command=lambda _c=c: self.sort_treeview(self.boss_tree, _c, False))
+            self.boss_tree.column(c, width=100, anchor="center")
+        self.boss_tree.pack(fill="both", expand=True, padx=15, pady=5); self.boss_tree.bind("<Double-1>", self.on_boss_double_click)
 
-# 📊 3. 화면 구성
-if isinstance(df, pd.DataFrame):
-    with st.sidebar:
-        st.markdown("<div style='text-align:center; padding-bottom:5px;'><img src='https://img.icons8.com/neon/150/shield.png' width='70'></div>", unsafe_allow_html=True)
-        
-        timer_html = """
-        <div style="background:linear-gradient(135deg,#151515,#0a0a0a); border:1px solid #76B90066; padding:15px; border-radius:10px; text-align:center;">
-            <div style="font-size:11px; color:#888; font-weight:bold; margin-bottom:5px;">NEXT BOSS RADAR</div>
-            <div id="sidebar-timer" style="font-size:32px; font-weight:900; color:#76B900; font-family:monospace;">00:00:00</div>
-        </div>
-        <script>
-        function up() {
-            const n = new Date(new Date().toLocaleString("en-US",{timeZone:"Asia/Seoul"}));
-            const b = [14, 18, 20]; let t = null;
-            for(let h of b){ let x=new Date(n); x.setHours(h,0,0,0); if(n<x){t=x;break;}}
-            if(!t){t=new Date(n); t.setDate(n.getDate()+1); t.setHours(14,0,0,0);}
-            const d = t-n;
-            const h = String(Math.floor(d/3600000)).padStart(2,'0');
-            const m = String(Math.floor((d%3600000) / 60000)).padStart(2,'0');
-            const s = String(Math.floor((d%60000) / 1000)).padStart(2,'0');
-            document.getElementById('sidebar-timer').innerText = h+":"+m+":"+s;
-        } setInterval(up,1000); up();
-        </script>
-        """
-        components.html(timer_html, height=115)
-        
-        if st.button("🔄 최신 데이터 불러오기", use_container_width=True):
-            st.cache_data.clear()
-            st.rerun()
+    def create_guild_tree(self, parent, title):
+        frame = ttk.LabelFrame(parent, text=f" [{title}] ")
+        cols = ("이름", "직업", "전투력", "누계", "성장(율)", "카톡")
+        tree = ttk.Treeview(frame, columns=cols, show="headings", height=18)
+        for c in cols: 
+            tree.heading(c, text=c, command=lambda _t=tree, _c=c: self.sort_treeview(_t, _c, False))
+            tree.column(c, width=95, anchor="center")
+        tree.pack(fill="both", expand=True, padx=5, pady=5); tree.bind("<<TreeviewSelect>>", lambda e: self.on_tree_select(tree)); return tree
 
-        st.divider()
-        st.subheader("📊 연합 실시간 지표")
-        c1, c2 = st.columns(2)
-        c1.metric("인원", f"{len(df)}명")
-        c2.metric("총투력", f"{df['전투력_v'].sum():,}")
+    def sort_treeview(self, tree, col, reverse):
+        l = [(tree.set(k, col), k) for k in tree.get_children('')]
+        if not l: return
+        self.sort_history[tree] = (col, reverse)
+
+        def parse_val(val):
+            s = str(val).replace(',', '').replace('▲', '').replace('▼', '').replace('회', '').replace('위', '').replace(' 다이아', '').strip()
+            if '(' in s:
+                try: s = s.split('(')[1].split('%')[0]
+                except: pass
+            try: return float(s)
+            except: return s.lower()
+
+        try:
+            sample = parse_val(l[0][0])
+            if isinstance(sample, float): l.sort(key=lambda t: parse_val(t[0]), reverse=reverse)
+            else: l.sort(key=lambda t: str(t[0]).lower(), reverse=reverse)
+        except: l.sort(reverse=reverse)
+
+        for i, (v, k) in enumerate(l): tree.move(k, '', i)
+        tree.heading(col, command=lambda: self.sort_treeview(tree, col, not reverse))
+
+    def refresh_all_views(self):
+        if not self.participants: return
+        g_counts = {g: 0 for g in self.guilds}; g_cp_sum = {g: 0 for g in self.guilds}; c_counts = {c: 0 for c in self.game_classes}
+        t14, t18, t22 = 0, 0, 0
+        for d in self.participants.values():
+            if d['guild'] in g_counts: g_counts[d['guild']] += 1; g_cp_sum[d['guild']] += d['cp']
+            if d['class'] in c_counts: c_counts[d['class']] += 1
+            if d.get("14:00") == "O": t14 += 1
+            if d.get("18:00") == "O": t18 += 1
+            if d.get("22:00") == "O": t22 += 1
+        total_p = len(self.participants)
+        self.boss_summary_lbl.config(text=f"📢 현재 참여 현황  [ 14시: {t14}명 / {total_p}명 ]  |  [ 18시: {t18}명 / {total_p}명 ]  |  [ 22시: {t22}명 / {total_p}명 ]")
+        stats_str = ""
+        for g in self.guilds:
+            count = g_counts[g]; avg = g_cp_sum[g] // count if count > 0 else 0
+            stats_str += f"[{g}: {count}명 (평균 {avg:,})]  "
+        self.guild_stats_lbl.config(text=stats_str + " | 직업현황: " + ", ".join([f"{k}({v})" for k, v in c_counts.items() if v > 0]))
+        self.total_cp_lbl.config(text=f"전체 연합 전투력: {sum(g_cp_sum.values()):,}")
+
+        for t in [self.tree_guild1, self.tree_guild2, self.boss_tree, self.rank_tree_all, self.mvp_tree]:
+            for i in t.get_children(): t.delete(i)
         
-        st.divider()
-        youtube_links = [("가미가미 TV", "https://www.youtube.com/@gamigami706", "youtube-play"),
-                         ("왕코 방송국", "https://www.youtube.com/@스트리머왕코", "controller"),
-                         ("아이엠솔이", "https://www.youtube.com/@아이엠솔이", "microphone")]
-        for name, url, icon in youtube_links:
-            y1, y2 = st.columns([1, 4])
-            with y1: st.image(f"https://img.icons8.com/neon/96/{icon}.png", width=22)
-            with y2: st.link_button(name, url, use_container_width=True)
+        for g_n, t_t in [("오늘만산다", self.tree_guild1), ("오늘만살자", self.tree_guild2)]:
+            g_m = sorted([(n, d) for n, d in self.participants.items() if d["guild"] == g_n], key=lambda x: x[1]["cp"], reverse=True)
+            for r, (n, d) in enumerate(g_m, 1):
+                t_t.insert("", "end", values=(n, d["class"], f"{d['cp']:,}", f"{self.get_total(d)}회", d.get("growth", "-"), d.get("kakao", "X")))
+        
+        for n, d in self.participants.items(): 
+            self.boss_tree.insert("", "end", values=(d["guild"], n, d["14:00"], d["18:00"], d["22:00"], f"{self.get_total(d)}회"))
             
-        st.divider()
-        with st.expander("🔐 ADMIN", expanded=False):
-            admin_pw = st.text_input("PASSWORD", type="password")
-            is_admin = (admin_pw == "1234") 
+        cp_sorted = sorted(self.participants.items(), key=lambda x: x[1]["cp"], reverse=True)
+        for r, (n, d) in enumerate(cp_sorted, 1): self.rank_tree_all.insert("", "end", values=(f"{r}위", n, d["class"], f"{d['cp']:,}"))
+            
+        for cls, tree in self.class_trees.items():
+            for i in tree.get_children(): tree.delete(i)
+            cls_m = sorted([(n, d) for n, d in self.participants.items() if d["class"] == cls], key=lambda x: x[1]["cp"], reverse=True)
+            for r, (n, d) in enumerate(cls_m, 1): tree.insert("", "end", values=(f"{r}위", d["guild"], n, f"{d['cp']:,}"))
+        
+        mvp_sorted = sorted(self.participants.items(), key=lambda x: self.get_numeric_value(x[1].get("growth")), reverse=True)
+        for r, (n, d) in enumerate(mvp_sorted[:10], 1):
+            rate = d.get("growth", "-").split("(")[1].replace(")", "") if "(" in d.get("growth", "") else "0%"
+            self.mvp_tree.insert("", "end", values=(f"{r}위", n, d["guild"], rate))
 
-    # 메인 타이틀
-    st.title("🛡️ Chosun Swordsman Classic")
-    tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
+        for tree, (col, rev) in self.sort_history.items(): self.sort_treeview(tree, col, rev)
+        self.save_data()
 
-    TABLE_HEIGHT = 700 
+    def build_cp_tab(self):
+        stats_f = ttk.LabelFrame(self.tab_cp, text=" [ 📈 통합 통계 지표 ] "); stats_f.pack(pady=10, padx=15, fill="x")
+        self.guild_stats_lbl = ttk.Label(stats_f, text="분석 중...", font=("Arial", 10, "bold"), foreground=self.color_gold); self.guild_stats_lbl.pack(pady=10)
+        edit_f = ttk.LabelFrame(self.tab_cp, text=" [ 인원 관리 ] "); edit_f.pack(pady=5, padx=15, fill="x")
+        input_f = ttk.Frame(edit_f); input_f.pack(pady=10, padx=10)
+        self.cp_guild_var = tk.StringVar(value=self.guilds[0]); ttk.Combobox(input_f, textvariable=self.cp_guild_var, values=self.guilds, width=10, state="readonly").grid(row=0, column=0, padx=5)
+        self.cp_name_entry = tk.Entry(input_f, width=15, bg="#333333", fg="#FFFFFF"); self.cp_name_entry.grid(row=0, column=1, padx=5)
+        self.class_var = tk.StringVar(value="검객"); ttk.Combobox(input_f, textvariable=self.class_var, values=self.game_classes, width=8, state="readonly").grid(row=0, column=2, padx=5)
+        self.cp_entry = tk.Entry(input_f, width=12, bg="#333333", fg="#FFFFFF"); self.cp_entry.grid(row=0, column=3, padx=5)
+        self.kakao_var = tk.StringVar(value="O"); ttk.Combobox(input_f, textvariable=self.kakao_var, values=["O", "X"], width=3, state="readonly").grid(row=0, column=4, padx=5)
+        btn_f = ttk.Frame(edit_f); btn_f.pack(pady=5)
+        ttk.Button(btn_f, text="💾 저장/수정", command=self.update_cp_data).pack(side="left", padx=5)
+        ttk.Button(btn_f, text="🗑️ 삭제", command=self.delete_member).pack(side="left", padx=5)
+        list_p = ttk.PanedWindow(self.tab_cp, orient=tk.HORIZONTAL); list_p.pack(fill="both", expand=True, padx=15, pady=10)
+        self.tree_guild1 = self.create_guild_tree(list_p, "오늘만산다"); self.tree_guild2 = self.create_guild_tree(list_p, "오늘만살자")
+        list_p.add(self.tree_guild1.master, weight=1); list_p.add(self.tree_guild2.master, weight=1)
 
-    with tabs[0]: # ⚔️ 보스 현황
-        max_val = df['누계_v'].max()
-        if max_val > 0:
-            mvps = df[df['누계_v'] == max_val]['이름'].tolist()
-            st.markdown(f"<div class='mvp-bar'><span style='color:#76B900; font-weight:bold;'>🏆 이번 주 보탐 MVP : </span>{', '.join(mvps)}</div>", unsafe_allow_html=True)
-        p_cols = st.columns(3)
-        t_info = [("14시", "14_p"), ("18시", "18_p"), ("20시", "22_p")]
-        for i, (t_name, p_col) in enumerate(t_info):
-            with p_cols[i]:
-                names = df[df[p_col]]['이름'].tolist()
-                st.markdown(f"#### 🕒 {t_name}")
-                st.markdown(f"<div class='participant-box'>{', '.join(names) if names else '참여자 없음'}</div>", unsafe_allow_html=True)
-        st.divider()
-        boss_vis = df.copy()
-        for col in ['14시', '18시', '22시']: boss_vis[col] = boss_vis[col].apply(lambda x: "✅" if str(x).strip().lower() in ['o', 'ㅇ', 'v'] else "──")
-        st.dataframe(add_medal_logic(boss_vis.sort_values(by="누계_v", ascending=False))[['순위', '문파', '이름', '14시', '18시', '22시', '누계_v']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
+    def trigger_google_sync(self):
+        if not GSPREAD_INSTALLED: messagebox.showerror("오류", "gspread 미설치"); return
+        threading.Thread(target=self._sync_thread, daemon=True).start()
 
-    with tabs[1]: # 🛡️ 투력 현황
-        cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
-        cp_rank['전투력_표시'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
-        st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
+    def _sync_thread(self):
+        try:
+            gc = gspread.service_account(filename=self.credentials_file); sh = gc.open(self.sheet_name); ws = sh.sheet1
+            ordered_names = [self.boss_tree.item(i)['values'][1] for i in self.boss_tree.get_children()]
+            matrix = [["" for _ in range(12)] for _ in range(70)]
+            matrix[0][0] = f"📊 [실시간] 사령부 통합 현황 ({datetime.now().strftime('%m/%d %H:%M')})"
+            matrix[6][0:11] = ["문파", "이름", "직업", "전투력", "14시", "18시", "22시", "누계", "성장", "카톡", "분배금"]
+            t_dia = 0
+            try: t_dia = int(self.total_money_entry.get().replace(',', ''))
+            except: pass
+            
+            # 🚨 구글 동기화 시에도 전투력 1 이하 제외 로직 적용
+            def get_score(d):
+                if d['cp'] <= 1: return 0  # 전투력 1 이하는 분배금 0원
+                coef = (1.0 if d['cp']>=200000 else 0.9 if d['cp']>=190000 else 0.8 if d['cp']>=180000 else 0.7 if d['cp']>=170000 else 0.6 if d['cp']>=150000 else 0.5 if d['cp']>=130000 else 0.4 if d['cp']>=110000 else 0.3 if d['cp']>=90000 else 0.2 if d['cp']>=70000 else 0.1)
+                return self.get_total(d) * coef
+            
+            t_score = sum([get_score(d) for d in self.participants.values()])
+            for i, name in enumerate(ordered_names[:55]):
+                d = self.participants[name]; dist = int((get_score(d) / t_score) * t_dia) if t_score > 0 else 0
+                matrix[i+7][0:11] = [d["guild"], name, d["class"], d["cp"], d["14:00"], d["18:00"], d["22:00"], f"{self.get_total(d)}회", d.get("growth", "-"), d.get("kakao", "X"), f"{dist:,}"]
+            ws.clear(); ws.update(values=matrix, range_name='A1'); messagebox.showinfo("성공", "구글 시트 동기화 완료!")
+        except Exception as e: messagebox.showerror("실패", f"동기화 오류: {e}")
 
-    with tabs[2]: # 🔥 성장 랭킹
-        growth_rank = add_medal_logic(df.sort_values(by="성장_v", ascending=False))
-        st.dataframe(growth_rank[['순위', '문파', '이름', '성장_표시', '전투력']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
+    def build_dashboard_tab(self):
+        self.dash_inner = ttk.Frame(self.tab_dashboard); self.dash_inner.pack(fill="both", expand=True, padx=40, pady=20)
+        self.guild_total_f = ttk.LabelFrame(self.dash_inner, text=" [ 🏰 통합 전투력 ] "); self.guild_total_f.pack(fill="x", pady=10)
+        self.total_cp_lbl = ttk.Label(self.guild_total_f, text="전투력: 0", font=("Arial", 18, "bold"), foreground=self.color_gold); self.total_cp_lbl.pack(pady=15)
+        c_container = ttk.Frame(self.dash_inner); c_container.pack(fill="both", expand=True)
+        self.chart_f = ttk.LabelFrame(c_container, text=" [ ⚔️ 직업별 성장률 ] "); self.chart_f.pack(side="left", fill="both", expand=True, padx=5)
+        self.canvas_bar = tk.Canvas(self.chart_f, bg="#111111", highlightthickness=0); self.canvas_bar.pack(fill="both", expand=True, padx=10, pady=10)
+        self.pie_f = ttk.LabelFrame(c_container, text=" [ ⚖️ 문파 비중 ] "); self.pie_f.pack(side="left", fill="both", expand=True, padx=5)
+        self.canvas_pie = tk.Canvas(self.pie_f, bg="#111111", highlightthickness=0); self.canvas_pie.pack(fill="both", expand=True, padx=10, pady=10)
+        self.mvp_f = ttk.LabelFrame(self.dash_inner, text=" [ 🔥 성장 랭킹 ] "); self.mvp_f.pack(fill="x", pady=10)
+        self.mvp_tree = ttk.Treeview(self.mvp_f, columns=("순위", "이름", "문파", "성장률"), show="headings", height=5)
+        for c in ("순위", "이름", "문파", "성장률"): self.mvp_tree.heading(c, text=c, command=lambda _c=c: self.sort_treeview(self.mvp_tree, _c, False)); self.mvp_tree.column(c, anchor="center")
+        self.mvp_tree.pack(fill="x", padx=10, pady=10)
 
-    with tabs[3]: # 🏆 직업별 랭킹
-        job_list = sorted(df['직업'].unique())
-        selected_job = st.selectbox("직업 선택", job_list)
-        job_rank = add_medal_logic(df[df['직업'] == selected_job].sort_values(by="전투력_v", ascending=False))
-        job_rank['전투력_표시'] = job_rank['전투력_v'].apply(lambda x: f"{x:,}")
-        st.dataframe(job_rank[['순위', '문파', '이름', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
+    def build_rank_tab(self):
+        p = ttk.PanedWindow(self.tab_rank, orient=tk.HORIZONTAL); p.pack(fill="both", expand=True, padx=15, pady=15)
+        left = ttk.LabelFrame(p, text=" 👑 통합 순위 "); p.add(left, weight=1)
+        self.rank_tree_all = ttk.Treeview(left, columns=("순위", "이름", "직업", "투력"), show="headings")
+        for c in ("순위", "이름", "직업", "투력"): self.rank_tree_all.heading(c, text=c, command=lambda _c=c: self.sort_treeview(self.rank_tree_all, _c, False)); self.rank_tree_all.column(c, width=80, anchor="center")
+        self.rank_tree_all.pack(fill="both", expand=True)
+        right = ttk.Frame(p); p.add(right, weight=2)
+        for i, cls in enumerate(self.game_classes):
+            r, c = divmod(i, 2); f = ttk.LabelFrame(right, text=f" [{cls}] "); f.grid(row=r, column=c, sticky="nsew", padx=3, pady=3); right.rowconfigure(r, weight=1); right.columnconfigure(c, weight=1)
+            tree = ttk.Treeview(f, columns=("순위", "문파", "이름", "투력"), show="headings", height=10)
+            for tc in ("순위", "문파", "이름", "투력"): tree.heading(tc, text=tc, command=lambda _t=tree, _c=tc: self.sort_treeview(_t, _c, False)); tree.column(tc, width=80, anchor="center")
+            tree.pack(fill="both", expand=True); self.class_trees[cls] = tree
 
-    with tabs[4]: # 🛍️ 문파 거래소
-        m_col1, m_col2 = st.columns([1, 2])
-        with m_col1:
-            with st.form("market_form", clear_on_submit=True):
-                m_seller = st.text_input("판매자 닉네임", placeholder="내 아이디")
-                m_item = st.text_input("아이템 이름", placeholder="아이템명")
-                m_price = st.text_input("가격", placeholder="예: 500 💎")
-                if st.form_submit_button("등록하기"):
-                    if market_worksheet:
-                        market_worksheet.append_row([m_seller, m_item, m_price, "판매중"])
-                        st.success("등록되었습니다!")
-                        st.cache_data.clear()
-                        st.rerun()
-        with m_col2:
-            if not market_df.empty:
-                for idx, row in market_df.iterrows():
-                    is_sold = "판매완료" in row['상태']
-                    card_class = "market-card sold-out-card" if is_sold else "market-card"
-                    status_text = "판매완료" if is_sold else "판매중"
-                    tag_class = "status-tag status-tag-sold" if is_sold else "status-tag"
-                    
-                    st.markdown(f"""
-                        <div class="{card_class}">
-                            <div class="item-info">
-                                <div class="item-name">{row['아이템이름']}</div>
-                                <div class="item-price">{row['가격']}</div>
-                                <div class="item-seller">판매자 : {row['판매자']}</div>
-                            </div>
-                            <div class="status-area"><div class="{tag_class}">{status_text}</div></div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
-                    b_c1, b_c2 = st.columns([1, 1])
-                    if not is_sold:
-                        if b_c1.button(f"🤝 거래완료", key=f"done_{idx}"):
-                            market_worksheet.update_cell(idx + 2, 4, "판매완료")
-                            st.cache_data.clear()
-                            st.rerun()
-                    if is_admin:
-                        if b_c2.button(f"🗑️ 매물삭제", key=f"del_{idx}"):
-                            market_worksheet.delete_rows(idx + 2)
-                            st.cache_data.clear()
-                            st.rerun()
-            else: st.info("매물이 없습니다.")
+    def build_money_tab(self):
+        f = ttk.LabelFrame(self.tab_money, text=" [ 💰 정산기 ] "); f.pack(pady=20, padx=20, fill="x")
+        self.total_money_entry = tk.Entry(f, width=15, bg="#333333", fg="white", font=("Arial", 12)); self.total_money_entry.grid(row=0, column=1)
+        ttk.Button(f, text="정산 실행", command=self.calculate_distribution).grid(row=0, column=2, padx=20)
+        self.remain_diamond_lbl = ttk.Label(f, text="잔여: 0", font=("Arial", 11, "bold"), foreground=self.color_gold); self.remain_diamond_lbl.grid(row=0, column=3, padx=20)
+        cols = ("이름", "투력", "계수", "참여", "점수", "분배금")
+        self.money_tree = ttk.Treeview(self.tab_money, columns=cols, show="headings", height=20)
+        for c in cols: self.money_tree.heading(c, text=c, command=lambda _c=c: self.sort_treeview(self.money_tree, _c, False)); self.money_tree.column(c, width=120, anchor="center"); self.money_tree.pack(fill="both", expand=True, padx=20, pady=10)
 
-    with tabs[5]: # 📊 분석 통계
-        st.subheader("📊 연합 실시간 분석")
-        sc1, sc2, sc3 = st.columns(3)
-        sc1.metric("통합 전투력", f"{df['전투력_v'].sum():,}")
-        sc2.metric("평균 전투력", f"{int(df['전투력_v'].mean()):,}")
-        sc3.metric("평균 성장률", f"{df['성장_v'].mean():.2f}%")
-        st.divider()
-        g1, g2 = st.columns(2)
-        with g1: st.plotly_chart(px.pie(df, names='문파', values='전투력_v', hole=0.6, title="문파별 투력 비중"), use_container_width=True)
-        with g2: st.plotly_chart(px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포"), use_container_width=True)
+    def calculate_distribution(self):
+        """🚨 정산 로직 핵심: 전투력 1 이하 참여자 완전 제외"""
+        try:
+            total = int(self.total_money_entry.get().replace(',', '')); p_scores = []; t_score = 0
+            for n, d in self.participants.items():
+                cnt = self.get_total(d)
+                # 🛡️ 수정된 조건: 참여 횟수가 있고, 전투력이 1보다 큰 인원만 분배
+                if cnt > 0 and d['cp'] > 1:
+                    cp = d['cp']
+                    coef = 1.0 if cp >= 200000 else 0.9 if cp >= 190000 else 0.8 if cp >= 180000 else 0.7 if cp >= 170000 else 0.6 if cp >= 150000 else 0.5 if cp >= 130000 else 0.4 if cp >= 110000 else 0.3 if cp >= 90000 else 0.2 if cp >= 70000 else 0.1
+                    sc = cnt * coef; t_score += sc
+                    p_scores.append({"n": n, "cp": cp, "cf": coef, "ct": cnt, "sc": sc})
+            
+            for i in self.money_tree.get_children(): self.money_tree.delete(i)
+            dist_t = 0; p_scores.sort(key=lambda x: x["sc"], reverse=True)
+            for p in p_scores:
+                sh = int((p["sc"]/t_score)*total) if t_score > 0 else 0; dist_t += sh
+                self.money_tree.insert("", "end", values=(p["n"], f"{p['cp']:,}", f"x{p['cf']}", f"{p['ct']}회", f"{p['sc']:.1f}", f"{sh:,} 다이아"))
+            self.remain_diamond_lbl.config(text=f"잔여: {total - dist_t:,}")
+            messagebox.showinfo("완료", f"정산이 완료되었습니다.\n(전투력 1 이하 {len(self.participants) - len(p_scores) if t_score>0 else 0}명 제외됨)")
+            self.trigger_google_sync()
+        except Exception as e:
+            messagebox.showerror("오류", f"정산 중 오류 발생: {e}")
 
-    with tabs[6]: # 💰 정산 현황
-        income = df['분배금_v'].sum()
-        paid = df[df['정산상태'] == "정산완료"]['분배금_v'].sum()
-        st.subheader("💰 정산 관리 대시보드")
-        m1, m2, m3 = st.columns(3)
-        m1.metric("총 분배금", f"{income:,} 💎")
-        m2.metric("정산 완료", f"{paid:,} 💎")
-        m3.metric("남은 금액", f"{income-paid:,} 💎", delta_color="inverse")
-        st.divider()
-        money_rank = add_medal_logic(df[df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
-        money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,} 다이아")
-        if is_admin:
-            edited_df = st.data_editor(money_rank[['순위', '이름', '분배금_표시', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True, height=700)
-            if st.button("💾 정산 상태 저장"):
-                idx = sheet_header.index("정산상태") + 1
-                for _, row in edited_df.iterrows():
-                    cell = worksheet.find(row['이름'])
-                    worksheet.update_cell(cell.row, idx, row['정산상태'])
-                st.cache_data.clear()
-                st.rerun()
-        else:
-            money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
-            st.dataframe(money_rank[['순위', '문파', '이름', '분배금_표시', '상태']], use_container_width=True, hide_index=True, height=700)
+    # (이하 보조 함수들은 v11.0과 동일)
+    def on_boss_double_click(self, event):
+        item = self.boss_tree.identify_item(event.y); col = self.boss_tree.identify_column(event.x)
+        if item and col:
+            idx = int(col.replace("#", "")) - 1
+            if idx in [2, 3, 4]:
+                slot = ["14:00", "18:00", "22:00"][idx-2]; name = self.boss_tree.item(item, 'values')[1]
+                self.participants[name][slot] = "O" if self.participants[name].get(slot, "X") == "X" else "X"; self.refresh_all_views()
 
-else: st.error("데이터 로드 실패")
+    def update_cp_data(self):
+        n, cp_v, g = self.cp_name_entry.get().strip(), self.cp_entry.get().strip().replace(',', ''), self.cp_guild_var.get()
+        if n and cp_v.isdigit():
+            new_cp = int(cp_v)
+            if n in self.participants:
+                old_cp = self.participants[n]["cp"]; diff = new_cp - old_cp; rate = (diff/old_cp*100) if old_cp > 0 else 0
+                growth_str = f"▲{abs(diff):,} ({abs(rate):.1f}%)" if diff != 0 else "-"
+                self.participants[n].update({"guild": g, "class": self.class_var.get(), "cp": new_cp, "growth": growth_str, "kakao": self.kakao_var.get()})
+            else: self.participants[n] = {"guild": g, "class": self.class_var.get(), "cp": new_cp, "growth": "-", "kakao": self.kakao_var.get(), "14:00": "X", "18:00": "X", "22:00": "X", "base_total": 0}
+            self.refresh_all_views()
+
+    def delete_member(self):
+        n = self.cp_name_entry.get().strip()
+        if n in self.participants and messagebox.askyesno("삭제", f"[{n}] 삭제합니까?"): del self.participants[n]; self.refresh_all_views()
+
+    def on_tree_select(self, tree):
+        sel = tree.selection()
+        if sel:
+            v = tree.item(sel[0])['values']
+            name = v[1] if tree in [self.boss_tree, self.rank_tree_all, self.mvp_tree] else v[0]
+            if name in self.participants:
+                d = self.participants[name]; self.cp_name_entry.delete(0, tk.END); self.cp_name_entry.insert(0, name); self.cp_entry.delete(0, tk.END); self.cp_entry.insert(0, f"{d['cp']:,}"); self.cp_guild_var.set(d["guild"]); self.class_var.set(d["class"]); self.kakao_var.set(d.get("kakao", "O"))
+
+    def get_total(self, d): return d.get("base_total", 0) + [d.get("14:00", "X"), d.get("18:00", "X"), d.get("22:00", "X")].count("O")
+    def get_numeric_value(self, s):
+        try:
+            clean = str(s).replace(',', '').replace('▲', '').replace('▼', '').replace('회', '').replace('위', '').replace(' 다이아', '').strip()
+            if '(' in clean: clean = clean.split('(')[1].split('%')[0]
+            return float(clean)
+        except: return 0
+
+    def smart_batch_check(self, slot):
+        raw_text = self.batch_text.get("1.0", tk.END)
+        for n in re.findall(r'[가-힣a-zA-Z0-9]+', raw_text):
+            if n in self.participants: self.participants[n][slot] = "O"
+        self.refresh_all_views(); self.batch_text.delete("1.0", tk.END)
+
+    def reset_daily_checks(self):
+        if messagebox.askyesno("마감", "누적 점수로 합산합니까?"):
+            for d in self.participants.values(): d["base_total"] = self.get_total(d); d["14:00"]=d["18:00"]=d["22:00"]="X"
+            self.refresh_all_views(); self.trigger_google_sync()
+
+    def draw_dashboard(self):
+        if not self.participants: return
+        self.root.update_idletasks(); self.canvas_bar.delete("all"); self.canvas_pie.delete("all")
+        bw, bh = self.canvas_bar.winfo_width(), self.canvas_bar.winfo_height()
+        if bw > 10:
+            pad = 60; class_rates = {}
+            for cls in self.game_classes:
+                rates = [float(d["growth"].split("(")[1].split("%")[0]) for d in self.participants.values() if d["class"]==cls and "(" in str(d.get("growth"))]
+                class_rates[cls] = sum(rates)/len(rates) if rates else 0
+            max_r = max(class_rates.values()) if any(class_rates.values()) else 1.0; bar_w = (bw - (pad * 2)) / len(self.game_classes)
+            for i, cls in enumerate(self.game_classes):
+                val = class_rates[cls]; h_val = (val / max_r) * (bh - 140) if val > 0 else 0
+                x0, y0 = pad + (i * bar_w) + 10, bh - 60 - h_val; x1, y1 = x0 + bar_w - 20, bh - 60
+                color = self.class_colors.get(cls, self.neon_green)
+                self.canvas_bar.create_rectangle(x0, y0, x1, y1, fill=color, outline=self.fg_color)
+                self.canvas_bar.create_text((x0+x1)/2, bh - 40, text=cls, fill="white", font=("Arial", 9, "bold"))
+                self.canvas_bar.create_text((x0+x1)/2, y0 - 15, text=f"{val:.1f}%", fill=color, font=("Arial", 9, "bold"))
+        pw, ph = self.canvas_pie.winfo_width(), self.canvas_pie.winfo_height()
+        if pw > 10:
+            cx, cy, r = pw/2, ph/2 - 20, min(pw, ph)/3.5
+            g_totals = {g: sum([d["cp"] for d in self.participants.values() if d["guild"] == g]) for g in self.guilds}
+            total_all = sum(g_totals.values()) or 1; start_ang, colors = 0, ["#76B900", "#007BFF"]
+            for i, g in enumerate(self.guilds):
+                per = (g_totals[g] / total_all) * 100; ext = (per / 100) * 360
+                if ext > 0:
+                    self.canvas_pie.create_arc(cx-r, cy-r, cx+r, cy+r, start=start_ang, extent=ext, fill=colors[i], outline="white")
+                    lx, ly = 20, ph - 60 + (i * 25)
+                    self.canvas_pie.create_rectangle(lx, ly, lx+15, ly+15, fill=colors[i], outline="white")
+                    self.canvas_pie.create_text(lx+25, ly+7, text=f"{g}: {per:.1f}% ({g_totals[g]:,} CP)", fill="white", font=("Arial", 9, "bold"), anchor="w")
+                    start_ang += ext
+
+    def on_tab_changed(self, e):
+        if self.notebook.tab(self.notebook.select(), "text") == "📊 대시보드": self.draw_dashboard()
+    def on_window_resize(self, e):
+        if self.notebook.tab(self.notebook.select(), "text") == "📊 대시보드": self.draw_dashboard()
+
+    def save_data(self):
+        with open(self.data_file, "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.writer(f); w.writerow(["Guild", "Name", "Class", "CP", "T1", "T2", "T3", "BaseTotal", "Growth", "Kakao"])
+            for n, d in self.participants.items(): w.writerow([d["guild"], n, d["class"], d["cp"], d["14:00"], d["18:00"], d["22:00"], d.get("base_total", 0), d.get("growth", "-"), d.get("kakao", "X")])
+
+    def load_data(self):
+        if os.path.exists(self.data_file):
+            try:
+                with open(self.data_file, "r", encoding="utf-8-sig") as f:
+                    for r in csv.DictReader(f):
+                        n = r["Name"]; self.participants[n] = {"guild": r["Guild"], "class": r["Class"], "cp": int(r["CP"]), "14:00": r["T1"], "18:00": r["T2"], "22:00": r["T3"], "base_total": int(r.get("BaseTotal", 0)), "growth": r.get("Growth", "-"), "kakao": r.get("Kakao", "X")}
+                self.refresh_all_views()
+            except: pass
+
+if __name__ == "__main__":
+    root = tk.Tk(); app = GuildManagerApp(root); root.mainloop()
 
 
 
