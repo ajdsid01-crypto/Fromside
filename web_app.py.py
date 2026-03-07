@@ -15,18 +15,19 @@ st.markdown("""
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
     h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; }
     
-    /* 🚨 모든 표의 데이터(글자, 숫자 포함)를 왼쪽으로 강제 정렬 */
+    /* 사이드바 최적화 */
+    [data-testid="stSidebar"] > div:first-child { padding-top: 20px !important; }
+    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.8rem !important; }
+    .stDivider { margin: 0.8rem 0 !important; }
+    
+    /* 🚨 모든 표 데이터 좌측 정렬 강제 고정 */
     [data-testid="stDataFrame"] div[data-baseweb="table"] div {
         text-align: left !important;
         justify-content: flex-start !important;
-        padding-left: 15px !important;
-    }
-    
-    /* 헤더(제목) 부분도 왼쪽 정렬 */
-    [data-testid="stDataFrame"] div[data-baseweb="table"] th {
-        text-align: left !important;
+        padding-left: 10px !important;
     }
 
+    /* 🛍️ 카드형 거래소 디자인 */
     .market-card {
         background: #111; border: 1px solid #222; border-left: 5px solid #76B900;
         padding: 18px; border-radius: 12px; margin-bottom: 5px;
@@ -37,13 +38,16 @@ st.markdown("""
     .item-name { color: #FFF; font-size: 1.25rem; font-weight: bold; margin-bottom: 3px; }
     .item-price { color: #76B900; font-size: 1.15rem; font-weight: 800; margin-bottom: 6px; }
     .item-seller { color: #888; font-size: 0.9rem; }
+    
+    .status-area { flex: 1.5; text-align: right; }
     .status-tag { 
         display: inline-block; padding: 4px 10px; border-radius: 6px; 
         font-size: 0.75rem; font-weight: bold; border: 1px solid #76B900; color: #76B900;
         margin-bottom: 12px;
     }
+    .status-tag-sold { border-color: #555; color: #555; }
+    
     .stButton>button { width: 100%; border-radius: 6px; font-size: 0.85rem !important; height: 35px; }
-
     .mvp-bar {
         background: linear-gradient(90deg, #111, #1a1a1a);
         border: 1px solid #76B900; padding: 10px 20px; border-radius: 8px; text-align: center; margin-bottom: 20px;
@@ -104,13 +108,8 @@ def load_all_guild_data():
         df['성장_v'] = [x[0] for x in growth_parsed]
         df['성장_표시'] = [f"{x[0]}% ({x[1]})" for x in growth_parsed]
         
-        if '정산상태' in df.columns:
-            df['정산상태'] = df['정산상태'].apply(lambda x: "정산완료" if str(x).strip() == "정산완료" else "미정산")
-        else:
-            df['정산상태'] = "미정산"
-
-        def is_p(val): return str(val).strip().lower() in ['o', 'ㅇ', 'v']
-        df['14_p'], df['18_p'], df['22_p'] = df['14시'].apply(is_p), df['18시'].apply(is_p), df['22시'].apply(is_p)
+        df['정산상태'] = df['정산상태'].apply(lambda x: "정산완료" if str(x).strip() == "정산완료" else "미정산") if '정산상태' in df.columns else "미정산"
+        df['14_p'], df['18_p'], df['22_p'] = df['14시'].apply(lambda x: str(x).strip().lower() in ['o', 'ㅇ', 'v']), df['18시'].apply(lambda x: str(x).strip().lower() in ['o', 'ㅇ', 'v']), df['22시'].apply(lambda x: str(x).strip().lower() in ['o', 'ㅇ', 'v'])
         
         return spreadsheet, sheet, df, header, market_sheet, market_df
     except Exception as e:
@@ -122,8 +121,11 @@ spreadsheet, worksheet, df, sheet_header, market_worksheet, market_df = load_all
 if isinstance(df, pd.DataFrame):
     with st.sidebar:
         st.markdown("<div style='text-align:center; padding-bottom:10px;'><img src='https://img.icons8.com/neon/150/shield.png' width='75'></div>", unsafe_allow_html=True)
+        
+        # 보스 타이머 (복구)
         timer_html = """
         <div style="background:linear-gradient(135deg,#151515,#0a0a0a); border:1px solid #76B90066; padding:15px; border-radius:10px; text-align:center;">
+            <div style="font-size:11px; color:#888; font-weight:bold; margin-bottom:5px;">NEXT BOSS RADAR</div>
             <div id="sidebar-timer" style="font-size:32px; font-weight:900; color:#76B900; font-family:monospace;">00:00:00</div>
         </div>
         <script>
@@ -139,52 +141,76 @@ if isinstance(df, pd.DataFrame):
         </script>
         """
         components.html(timer_html, height=120)
+        
         if st.button("🔄 최신 데이터 불러오기", use_container_width=True):
             st.cache_data.clear(); st.rerun()
+
+        st.divider()
+        st.subheader("📊 연합 실시간 지표")
+        c1, c2 = st.columns(2)
+        c1.metric("인원", f"{len(df)}명")
+        c2.metric("총투력", f"{df['전투력_v'].sum():,}")
+        
+        st.divider()
+        youtube_links = [("가미가미 TV", "https://www.youtube.com/@gamigami706", "youtube-play"),
+                         ("왕코 방송국", "https://www.youtube.com/@스트리머왕코", "controller"),
+                         ("아이엠솔이", "https://www.youtube.com/@아이엠솔이", "microphone")]
+        for name, url, icon in youtube_links:
+            y1, y2 = st.columns([1, 4])
+            with y1: st.image(f"https://img.icons8.com/neon/96/{icon}.png", width=22)
+            with y2: st.link_button(name, url, use_container_width=True)
+            
+        st.divider()
+        with st.expander("🔐 ADMIN", expanded=False):
+            admin_pw = st.text_input("PASSWORD", type="password")
+            is_admin = (admin_pw == "1234") 
 
     st.title("🛡️ COMMAND CENTER")
     tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
 
     TABLE_HEIGHT = 700 
 
-    with tabs[0]: # ⚔️ 보스 현황
+    # 🚨 항목명 변경 및 정렬 설정
+    UI_CONFIG = {
+        "누계_v": st.column_config.NumberColumn("누계", alignment="left"),
+        "전투력_표시": st.column_config.TextColumn("전투력", alignment="left"),
+        "전투력_v": st.column_config.NumberColumn("전투력", alignment="left"),
+        "성장_표시": st.column_config.TextColumn("성장", alignment="left"),
+        "분배금_v": st.column_config.NumberColumn("분배금", alignment="left"),
+        "분배금_표시": st.column_config.TextColumn("분배금", alignment="left")
+    }
+
+    with tabs[0]: # ⚔️ 보탐 현황
         max_val = df['누계_v'].max()
         if max_val > 0:
             mvps = df[df['누계_v'] == max_val]['이름'].tolist()
-            st.markdown(f"<div class='mvp-bar'><span style='color:#76B900; font-weight:bold;'>🏆 이번 주 보탐 MVP : </span>{', '.join(mvps)}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='mvp-bar'><span style='color:#76B900; font-weight:bold;'>🏆 MVP : </span>{', '.join(mvps)}</div>", unsafe_allow_html=True)
         p_cols = st.columns(3)
         for i, (t_name, p_col) in enumerate([("14시", "14_p"), ("18시", "18_p"), ("20시", "22_p")]):
             with p_cols[i]:
                 names = df[df[p_col]]['이름'].tolist()
                 st.markdown(f"#### 🕒 {t_name}")
-                st.markdown(f"<div class='participant-box'>{', '.join(names) if names else '──'}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='participant-box'>{', '.join(names) if names else '참여자 없음'}</div>", unsafe_allow_html=True)
         st.divider()
         boss_vis = df.copy()
         for col in ['14시', '18시', '22시']: boss_vis[col] = boss_vis[col].apply(lambda x: "✅" if str(x).strip().lower() in ['o', 'ㅇ', 'v'] else "──")
-        
-        # 🚨 숫자를 문자열로 변환하여 강제로 왼쪽 정렬 적용
-        boss_vis['누계'] = boss_vis['누계_v'].apply(lambda x: str(x))
-        st.dataframe(add_medal_logic(boss_vis.sort_values(by="누계_v", ascending=False))[['순위', '문파', '이름', '14시', '18시', '22시', '누계']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
+        st.dataframe(add_medal_logic(boss_vis.sort_values(by="누계_v", ascending=False))[['순위', '문파', '이름', '14시', '18시', '22시', '누계_v']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT, column_config=UI_CONFIG)
 
     with tabs[1]: # 🛡️ 투력 현황
         cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
-        cp_rank['전투력'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
-        cp_rank = cp_rank.rename(columns={'성장_표시': '성장'})
-        st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력', '성장']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
+        cp_rank['전투력_표시'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
+        st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT, column_config=UI_CONFIG)
 
     with tabs[2]: # 🔥 성장 랭킹
         growth_rank = add_medal_logic(df.sort_values(by="성장_v", ascending=False))
-        growth_rank = growth_rank.rename(columns={'성장_표시': '성장'})
-        growth_rank['전투력'] = growth_rank['전투력_v'].apply(lambda x: f"{x:,}")
-        st.dataframe(growth_rank[['순위', '문파', '이름', '성장', '전투력']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
+        st.dataframe(growth_rank[['순위', '문파', '이름', '성장_표시', '전투력_v']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT, column_config=UI_CONFIG)
 
     with tabs[3]: # 🏆 직업별 랭킹
         job_list = sorted(df['직업'].unique())
         selected_job = st.selectbox("직업 선택", job_list)
         job_rank = add_medal_logic(df[df['직업'] == selected_job].sort_values(by="전투력_v", ascending=False))
-        job_rank['전투력'] = job_rank['전투력_v'].apply(lambda x: f"{x:,}")
-        job_rank = job_rank.rename(columns={'성장_표시': '성장'})
-        st.dataframe(job_rank[['순위', '문파', '이름', '전투력', '성장']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
+        job_rank['전투력_표시'] = job_rank['전투력_v'].apply(lambda x: f"{x:,}")
+        st.dataframe(job_rank[['순위', '문파', '이름', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT, column_config=UI_CONFIG)
 
     with tabs[4]: # 🛍️ 문파 거래소
         m1, m2 = st.columns([1, 2])
@@ -193,16 +219,16 @@ if isinstance(df, pd.DataFrame):
                 ms, mi, mp = st.text_input("판매자"), st.text_input("아이템"), st.text_input("가격")
                 if st.form_submit_button("등록하기"):
                     if market_worksheet:
-                        market_worksheet.append_row([ms, mi, mp, "판매중"]); st.cache_data.clear(); st.rerun()
+                        market_worksheet.append_row([ms, mi, mp, "판매중"]); st.success("등록되었습니다!"); st.cache_data.clear(); st.rerun()
         with m2:
             if not market_df.empty:
                 for idx, row in market_df.iterrows():
                     is_sold = "판매완료" in row['상태']
                     st.markdown(f'<div class="market-card {"sold-out-card" if is_sold else ""}"><div class="item-info"><div class="item-name">{row["아이템이름"]}</div><div class="item-price">{row["가격"]}</div><div class="item-seller">판매자 : {row["판매자"]}</div></div><div class="status-area"><div class="status-tag">{"판매완료" if is_sold else "판매중"}</div></div></div>', unsafe_allow_html=True)
                     b1, b2 = st.columns(2)
-                    if not is_sold and b1.button(f"🤝 거래완료", key=f"done_{idx}"):
+                    if not is_sold and b1.button(f"🤝 거래완료", key=f"d_{idx}"):
                         market_worksheet.update_cell(idx + 2, 4, "판매완료"); st.cache_data.clear(); st.rerun()
-                    if is_admin and b2.button(f"🗑️ 매물삭제", key=f"del_{idx}"):
+                    if is_admin and b2.button(f"🗑️ 매물삭제", key=f"x_{idx}"):
                         market_worksheet.delete_rows(idx + 2); st.cache_data.clear(); st.rerun()
 
     with tabs[5]: # 📊 분석 통계
@@ -218,16 +244,16 @@ if isinstance(df, pd.DataFrame):
         m1, m2, m3 = st.columns(3)
         m1.metric("총 분배금", f"{income:,} 💎"); m2.metric("정산 완료", f"{paid:,} 💎"); m3.metric("남은 금액", f"{income-paid:,} 💎", delta_color="inverse")
         money_rank = add_medal_logic(df[df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
-        money_rank['분배금'] = money_rank['분배금_v'].apply(lambda x: f"{x:,}")
+        money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,}")
         if is_admin:
-            edited_df = st.data_editor(money_rank[['순위', '이름', '분배금', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금"], hide_index=True, use_container_width=True, height=700)
+            edited = st.data_editor(money_rank[['순위', '이름', '분배금_표시', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"]), **UI_CONFIG}, disabled=["순위", "이름"], hide_index=True, use_container_width=True, height=700)
             if st.button("💾 정산 상태 저장"):
                 idx = sheet_header.index("정산상태") + 1
-                for _, row in edited_df.iterrows():
+                for _, row in edited.iterrows():
                     cell = worksheet.find(row['이름']); worksheet.update_cell(cell.row, idx, row['정산상태'])
                 st.cache_data.clear(); st.rerun()
         else:
             money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
-            st.dataframe(money_rank[['순위', '문파', '이름', '분배금', '상태']], use_container_width=True, hide_index=True, height=700)
+            st.dataframe(money_rank[['순위', '문파', '이름', '분배금_표시', '상태']], use_container_width=True, hide_index=True, height=700, column_config=UI_CONFIG)
 
 else: st.error("데이터 로드 실패")
