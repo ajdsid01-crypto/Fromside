@@ -34,6 +34,7 @@ st.markdown("""
     }
     .custom-table tr:hover { background-color: #151515; }
 
+    /* 🛍️ 카드형 거래소 디자인 */
     .market-card {
         background: #111; border: 1px solid #222; border-left: 5px solid #76B900;
         padding: 18px; border-radius: 12px; margin-bottom: 5px;
@@ -80,6 +81,7 @@ def load_all_guild_data():
         
         market_sheet = spreadsheet.worksheet("거래소")
         m_values = market_sheet.get_all_values()
+        # 🚨 컬럼명을 명시적으로 지정하여 오류 방지
         market_df = pd.DataFrame(m_values[1:], columns=["판매자", "아이템이름", "가격", "상태"]) if len(m_values) > 1 else pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
 
         def to_int(val):
@@ -160,7 +162,7 @@ if isinstance(df, pd.DataFrame):
 
     st.title("🛡️ COMMAND CENTER")
 
-    # 🚨 [검색창 배치 변경] 사이드바에서 메인 상단 탭 바로 위로 이동
+    # 🔍 상단 검색창
     search_query = st.text_input("🔍 길드원 닉네임으로 검색", placeholder="검색어를 입력하면 아래 모든 표가 필터링됩니다.")
     if search_query:
         filtered_df = df[df['이름'].str.contains(search_query, case=False, na=False)]
@@ -203,12 +205,7 @@ if isinstance(df, pd.DataFrame):
         cp_rank['전투력'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
         display_custom_table(cp_rank, ['순위', '문파', '이름', '직업', '전투력', '성장'], ['순위', '문파', '이름', '직업', '전투력', '성장'])
 
-    with tabs[2]: # 🔥 성장 랭킹
-        growth_rank = add_medal_logic(filtered_df.sort_values(by="성장_v", ascending=False))
-        growth_rank['전투력'] = growth_rank['전투력_v'].apply(lambda x: f"{x:,}")
-        display_custom_table(growth_rank, ['순위', '문파', '이름', '성장', '전투력'], ['순위', '문파', '이름', '성장', '전투력'])
-
-    with tabs[4]: # 🛍️ 문파 거래소
+    with tabs[4]: # 🛍️ 문파 거래소 (🚨 삭제 로직 보강)
         m1, m2 = st.columns([1, 2])
         with m1:
             with st.form("market_form", clear_on_submit=True):
@@ -222,19 +219,23 @@ if isinstance(df, pd.DataFrame):
                     is_sold = "판매완료" in row['상태']
                     st.markdown(f'<div class="market-card {"sold-out-card" if is_sold else ""}"><div class="item-info"><div class="item-name">{row["아이템이름"]}</div><div class="item-price">{row["가격"]}</div><div class="item-seller">판매자 : {row["판매자"]}</div></div><div class="status-area"><div class="status-tag">{"판매완료" if is_sold else "판매중"}</div></div></div>', unsafe_allow_html=True)
                     b1, b2 = st.columns(2)
-                    if not is_sold and b1.button(f"🤝 거래완료", key=f"d_{idx}"):
-                        market_worksheet.update_cell(idx + 2, 4, "판매완료"); st.cache_data.clear(); st.rerun()
-                    if st.session_state.authenticated and b2.button(f"🗑️ 매물삭제", key=f"x_{idx}"):
-                        market_worksheet.delete_rows(idx + 2); st.cache_data.clear(); st.rerun()
-            else: st.info("매물이 없습니다.")
-
-    with tabs[5]: # 📊 분석 통계
-        st.subheader("📊 연합 실시간 분석")
-        sc1, sc2, sc3 = st.columns(3)
-        sc1.metric("통합 전투력", f"{df['전투력_v'].sum():,}"); sc2.metric("평균 전투력", f"{int(df['전투력_v'].mean()):,}"); sc3.metric("평균 성장률", f"{df['성장_v'].mean():.2f}%")
-        g1, g2 = st.columns(2)
-        with g1: st.plotly_chart(px.pie(df, names='문파', values='전투력_v', hole=0.6, title="문파별 투력 비중"), use_container_width=True)
-        with g2: st.plotly_chart(px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포"), use_container_width=True)
+                    
+                    # 🤝 [거래 완료]
+                    if not is_sold and b1.button(f"🤝 거래완료", key=f"done_{idx}"):
+                        # 🚨 인덱스 대신 아이템 이름으로 검색해서 업데이트 (더 안전함)
+                        cell = market_worksheet.find(row["아이템이름"])
+                        market_worksheet.update_cell(cell.row, 4, "판매완료")
+                        st.cache_data.clear(); st.rerun()
+                    
+                    # 🗑️ [매물 삭제]
+                    if st.session_state.authenticated and b2.button(f"🗑️ 매물삭제", key=f"del_{idx}"):
+                        try:
+                            # 🚨 이름으로 정확한 행을 찾아 삭제
+                            cell = market_worksheet.find(row["아이템이름"])
+                            market_worksheet.delete_rows(cell.row)
+                            st.cache_data.clear(); st.success("삭제되었습니다."); st.rerun()
+                        except:
+                            st.error("삭제 중 오류가 발생했습니다. 수동으로 시트를 확인해주세요.")
 
     with tabs[6]: # 💰 정산 현황
         income, paid = df['분배금_v'].sum(), df[df['정산상태'] == "정산완료"]['분배금_v'].sum()
@@ -255,11 +256,23 @@ if isinstance(df, pd.DataFrame):
         else:
             display_custom_table(money_rank, ['순위', '문파', '이름', '분배금_표시', '상태'], ['순위', '문파', '이름', '분배금', '상태'])
 
+    # (기타 탭 로직 동일...)
+    with tabs[2]: # 🔥 성장 랭킹
+        growth_rank = add_medal_logic(filtered_df.sort_values(by="성장_v", ascending=False))
+        growth_rank['전투력'] = growth_rank['전투력_v'].apply(lambda x: f"{x:,}")
+        display_custom_table(growth_rank, ['순위', '문파', '이름', '성장', '전투력'], ['순위', '문파', '이름', '성장', '전투력'])
     with tabs[3]: # 🏆 직업별 랭킹
         job_list = sorted(df['직업'].unique())
         selected_job = st.selectbox("직업 선택", job_list)
         job_rank = add_medal_logic(filtered_df[filtered_df['직업'] == selected_job].sort_values(by="전투력_v", ascending=False))
         job_rank['전투력'] = job_rank['전투력_v'].apply(lambda x: f"{x:,}")
         display_custom_table(job_rank, ['순위', '문파', '이름', '전투력', '성장'], ['순위', '문파', '이름', '전투력', '성장'])
+    with tabs[5]: # 📊 분석 통계
+        st.subheader("📊 연합 실시간 분석")
+        sc1, sc2, sc3 = st.columns(3)
+        sc1.metric("통합 전투력", f"{df['전투력_v'].sum():,}"); sc2.metric("평균 전투력", f"{int(df['전투력_v'].mean()):,}"); sc3.metric("평균 성장률", f"{df['성장_v'].mean():.2f}%")
+        g1, g2 = st.columns(2)
+        with g1: st.plotly_chart(px.pie(df, names='문파', values='전투력_v', hole=0.6, title="문파별 투력 비중"), use_container_width=True)
+        with g2: st.plotly_chart(px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포"), use_container_width=True)
 
 else: st.error("데이터 로드 실패")
