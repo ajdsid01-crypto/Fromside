@@ -65,7 +65,7 @@ def add_medal_logic(df):
     df['순위'] = df['Rank'].apply(medal_icon)
     return df.drop(columns=['Rank'])
 
-# 📂 2. 데이터 로드 및 전처리 (로드 실패 방어 로직 강화)
+# 📂 2. 데이터 로드 및 전처리
 @st.cache_data(ttl=2)
 def load_all_guild_data():
     try:
@@ -75,11 +75,10 @@ def load_all_guild_data():
         client = gspread.authorize(creds)
         spreadsheet = client.open("조협오산오살")
         
-        # [메인 시트 로직 수정] 
         sheet = spreadsheet.sheet1
         all_data = sheet.get_all_values()
         
-        # 🚨 '이름'이라는 글자가 포함된 행을 찾아 헤더로 지정 (자동 검색)
+        # '이름' 헤더 자동 검색
         header_idx = 0
         for i, row in enumerate(all_data):
             if "이름" in row:
@@ -92,7 +91,7 @@ def load_all_guild_data():
         df = pd.DataFrame(rows, columns=header)
         df = df[df['이름'].str.strip() != ""].copy()
         
-        # 거래소 로드
+        # 거래소 시트 로드
         market_sheet = None
         market_df = pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
         try:
@@ -106,28 +105,23 @@ def load_all_guild_data():
                 market_df = pd.DataFrame(processed_rows, columns=["판매자", "아이템이름", "가격", "상태"])
         except: pass
 
-        # 데이터 정제
         def to_int(val):
             clean = re.sub(r'[^0-9]', '', str(val))
             return int(clean) if clean else 0
         
-        # 컬럼 존재 확인 후 정제 (오류 방지)
         for col in ['전투력', '누계', '분배금']:
             if col in df.columns:
                 df[f'{col}_v'] = df[col].apply(to_int)
             else:
                 df[f'{col}_v'] = 0
 
-        if '정산상태' not in df.columns:
-            df['정산상태'] = "미정산"
+        if '정산상태' not in df.columns: df['정산상태'] = "미정산"
         df['정산상태'] = df['정산상태'].apply(lambda x: "정산완료" if str(x).strip() == "정산완료" else "미정산")
         
         def is_p(val): return str(val).strip().lower() in ['o', 'ㅇ', 'v']
         for t in ['14시', '18시', '22시']:
-            if t in df.columns:
-                df[f'{t}_p'] = df[t].apply(is_p)
-            else:
-                df[f'{t}_p'] = False
+            if t in df.columns: df[f'{t}_p'] = df[t].apply(is_p)
+            else: df[f'{t}_p'] = False
         
         return spreadsheet, sheet, df, header, market_sheet, market_df
     except Exception as e:
@@ -236,6 +230,30 @@ if isinstance(df, pd.DataFrame):
                         if st.button(f"🗑️ 삭제", key=f"del_{idx}"):
                             market_worksheet.delete_rows(idx + 2); st.cache_data.clear(); st.rerun()
 
+    with tabs[5]: # 📊 분석 통계 (복구 완료)
+        st.subheader("📊 연합 실시간 분석")
+        sc1, sc2, sc3, sc4 = st.columns(4)
+        total_cp = df['전투력_v'].sum()
+        avg_cp = int(df['전투력_v'].mean()) if len(df) > 0 else 0
+        sc1.metric("통합 전투력", f"{total_cp:,}")
+        sc2.metric("평균 전투력", f"{avg_cp:,}")
+        sc3.metric("최고 전투력", f"{df['전투력_v'].max():,}")
+        sc4.metric("연합 인원", f"{len(df)}명")
+        st.divider()
+        g1, g2 = st.columns(2)
+        with g1:
+            fig_pie = px.pie(df, names='문파', values='전투력_v', hole=0.5, title="🏰 문파별 투력 점유율",
+                             color_discrete_sequence=['#76B900', '#007BFF'])
+            fig_pie.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='white', showlegend=False)
+            st.plotly_chart(fig_pie, use_container_width=True)
+        with g2:
+            job_counts = df['직업'].value_counts().reset_index()
+            job_counts.columns = ['직업', '인원']
+            fig_bar = px.bar(job_counts, x='직업', y='인원', title="⚔️ 직업별 인원 분포", text='인원')
+            fig_bar.update_traces(marker_color='#76B900', opacity=0.8)
+            fig_bar.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='white', xaxis_title=None, yaxis_title=None)
+            st.plotly_chart(fig_bar, use_container_width=True)
+
     with tabs[6]: # 정산 (전투력 > 1 & 누계 > 0 정예 필터링)
         elite_df = df[(df['전투력_v'] > 1) & (df['누계_v'] > 0)].copy()
         income = elite_df['분배금_v'].sum()
@@ -255,13 +273,12 @@ if isinstance(df, pd.DataFrame):
             money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
             st.dataframe(money_rank[['순위', '문파', '이름', '분배금_v', '상태']], use_container_width=True, hide_index=True, height=700)
 
-    # 나머지 탭 (성장, 직업, 통계) - 기본 데이터프레임 노출
+    # 나머지 랭킹 탭
     with tabs[2]: st.dataframe(add_medal_logic(df.sort_values(by="전투력_v", ascending=False))[['순위', '문파', '이름', '전투력']], height=700)
     with tabs[3]: st.dataframe(df[['문파', '이름', '직업', '전투력']], height=700)
-    with tabs[5]: st.plotly_chart(px.pie(df, names='문파', values='전투력_v', hole=0.6, title="문파별 투력 비중"), use_container_width=True)
 
 else:
-    st.error(f"데이터 로드 실패: {df}")
+    st.error(f"데이터 로드 실패")
 
 
 
