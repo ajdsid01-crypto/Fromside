@@ -186,7 +186,7 @@ if isinstance(df, pd.DataFrame):
     # --- 메인 영역 ---
     st.title("🛡️ Chosun Swordsman Classic")
     
-    search_q = st.text_input("🔍 연합원 검색", placeholder="닉네임을 입력하세요")
+    search_q = st.text_input("🔍 문파원 검색", placeholder="닉네임을 입력하세요")
     if search_q:
         res = df[df['이름'].str.contains(search_q, na=False, case=False)].copy()
         if not res.empty:
@@ -277,6 +277,7 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error("데이터 로드 실패")
+
 
 
 
