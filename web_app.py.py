@@ -14,7 +14,7 @@ st.markdown("""
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
     h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; text-align: left !important; }
     
-    /* 🚨 사이드바: 답답함을 해소하는 여백 밸런스 조정 */
+    /* 사이드바: 답답함 없는 밸런스 조정 */
     [data-testid="stSidebar"] > div:first-child { padding-top: 20px !important; }
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.8rem !important; }
     .stDivider { margin: 1rem 0 !important; }
@@ -109,9 +109,8 @@ spreadsheet, worksheet, df, sheet_header = load_all_guild_data()
 
 # 📊 3. 화면 구성
 if isinstance(df, pd.DataFrame):
-    # --- 사이드바 영역 (답답함 해소 버전) ---
+    # --- 사이드바 영역 ---
     with st.sidebar:
-        # 로고 영역: 여유로운 여백 확보
         st.markdown(f"""
             <div style="text-align: center; padding: 15px 0 20px 0;">
                 <img src="https://img.icons8.com/neon/150/shield.png" width="80" style="filter: drop-shadow(0 0 8px #76B900);">
@@ -122,7 +121,6 @@ if isinstance(df, pd.DataFrame):
             </div>
         """, unsafe_allow_html=True)
 
-        # 🕒 쾌적한 실시간 라이브 타이머
         timer_html = """
         <div id="boss-timer-hq" style="
             background: linear-gradient(135deg, #151515 0%, #0a0a0a 100%);
@@ -163,14 +161,12 @@ if isinstance(df, pd.DataFrame):
         """
         components.html(timer_html, height=160)
         
-        # 실시간 지표 영역
         st.subheader("📊 연합 실시간 지표")
         sc1, sc2 = st.columns(2)
         sc1.metric("인원", f"{len(df)}명")
         sc2.metric("총투력", f"{df['전투력_v'].sum():,}")
         st.divider()
         
-        # 유튜브 방송 센터
         youtube_links = [("가미가미 TV", "https://www.youtube.com/@gamigami706", "youtube-play"),
                          ("왕코 방송국", "https://www.youtube.com/@스트리머왕코", "controller"),
                          ("아이엠솔이", "https://www.youtube.com/@아이엠솔이", "microphone")]
@@ -182,16 +178,14 @@ if isinstance(df, pd.DataFrame):
         st.divider()
         with st.expander("🔐 ADMIN", expanded=False):
             admin_pw = st.text_input("PASSWORD", type="password")
-            # 🚨 비밀번호 수정은 여기서 하세요!
             is_admin = (admin_pw == "1234") 
             if st.button("SYSTEM RELOAD"):
                 st.cache_data.clear()
                 st.rerun()
 
     # --- 메인 영역 ---
-    st.title("🛡️ Chosun Swordsman Classic")
+    st.title("🛡️ COMMAND CENTER")
     
-    # 🔍 검색창
     search_q = st.text_input("🔍 연합원 검색", placeholder="닉네임을 입력하세요")
     if search_q:
         res = df[df['이름'].str.contains(search_q, na=False, case=False)].copy()
@@ -201,6 +195,9 @@ if isinstance(df, pd.DataFrame):
         st.divider()
 
     tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "📊 분석 통계", "💰 정산 현황"])
+
+    # 📏 높이 변수 설정 (원하시는 만큼 조절 가능합니다)
+    TABLE_HEIGHT = 700 
 
     with tabs[0]: # ⚔️ 보스 현황
         max_val = df['누계_v'].max()
@@ -221,24 +218,28 @@ if isinstance(df, pd.DataFrame):
         for col in ['14시', '18시', '22시']:
             boss_vis[col] = boss_vis[col].apply(lambda x: "✅" if str(x).strip().lower() in ['o', 'ㅇ', 'v'] else "──")
         boss_rank = add_medal_logic(boss_vis.sort_values(by="누계_v", ascending=False))
-        st.dataframe(boss_rank[['순위', '문파', '이름', '14시', '18시', '22시', '누계_v']], use_container_width=True, hide_index=True,
-                     column_config={"누계_v": st.column_config.ProgressColumn("참여도", format="%d회", min_value=0, max_value=int(max_val) if max_val > 0 else 21)})
+        st.dataframe(
+            boss_rank[['순위', '문파', '이름', '14시', '18시', '22시', '누계_v']], 
+            use_container_width=True, hide_index=True, height=TABLE_HEIGHT,
+            column_config={"누계_v": st.column_config.ProgressColumn("참여도", format="%d회", min_value=0, max_value=int(max_val) if max_val > 0 else 21)}
+        )
 
     with tabs[1]: # 🛡️ 투력 현황
         cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
         cp_rank['전투력_표시'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
-        st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True)
+        st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
-    with tabs[2]: # 🔥 성장 랭킹
+    with tabs[2]: # 🔥 성장 랭킹 (높이 확장 적용)
+        st.subheader("🔥 실시간 성장률 TOP 랭킹")
         growth_rank = add_medal_logic(df.sort_values(by="성장_v", ascending=False))
-        st.dataframe(growth_rank[['순위', '문파', '이름', '성장_표시', '전투력']], use_container_width=True, hide_index=True)
+        st.dataframe(growth_rank[['순위', '문파', '이름', '성장_표시', '전투력']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
     with tabs[3]: # 🏆 직업별 랭킹
         job_list = sorted(df['직업'].unique())
         selected_job = st.selectbox("직업 선택", job_list)
         job_rank = add_medal_logic(df[df['직업'] == selected_job].sort_values(by="전투력_v", ascending=False))
         job_rank['전투력_표시'] = job_rank['전투력_v'].apply(lambda x: f"{x:,}")
-        st.dataframe(job_rank[['순위', '문파', '이름', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True)
+        st.dataframe(job_rank[['순위', '문파', '이름', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
     with tabs[4]: # 📊 분석 통계
         sc1, sc2, sc3 = st.columns(3)
@@ -258,7 +259,11 @@ if isinstance(df, pd.DataFrame):
         money_rank = add_medal_logic(df[df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
         money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,} 다이아")
         if is_admin:
-            edited_df = st.data_editor(money_rank[['순위', '이름', '분배금_표시', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True)
+            edited_df = st.data_editor(
+                money_rank[['순위', '이름', '분배금_표시', '정산상태']], 
+                column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, 
+                disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True, height=TABLE_HEIGHT
+            )
             if st.button("💾 정산 데이터 저장"):
                 status_idx = sheet_header.index("정산상태") + 1
                 for _, row in edited_df.iterrows():
@@ -268,10 +273,11 @@ if isinstance(df, pd.DataFrame):
                 st.rerun()
         else:
             money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
-            st.dataframe(money_rank[['순위', '문파', '이름', '분배금_표시', '상태']], use_container_width=True, hide_index=True)
+            st.dataframe(money_rank[['순위', '문파', '이름', '분배금_표시', '상태']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
 else:
     st.error("데이터 로드 실패")
+
 
 
 
