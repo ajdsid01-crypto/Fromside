@@ -7,7 +7,7 @@ import plotly.express as px
 import streamlit.components.v1 as components
 from datetime import datetime
 
-# 1. 🎨 [디자인] NVIDIA 프리미엄 다크 테마 및 균형 잡힌 레이아웃
+# 1. 🎨 [디자인] NVIDIA 프리미엄 다크 테마 및 컴팩트 레이아웃
 st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="wide")
 
 st.markdown("""
@@ -61,7 +61,7 @@ def add_medal_logic(df):
     df['순위'] = df['Rank'].apply(medal_icon)
     return df.drop(columns=['Rank'])
 
-# 📂 2. 데이터 로드 및 전처리 (오류 방어 로직 강화)
+# 📂 2. 데이터 로드 및 전처리 (데이터 위치 강제 매칭 버전)
 @st.cache_data(ttl=5)
 def load_all_guild_data():
     try:
@@ -78,24 +78,25 @@ def load_all_guild_data():
         df = pd.DataFrame(rows, columns=header)
         df = df[df['이름'].str.strip() != ""].copy()
         
-        # 🚨 거래소 시트 로드 (AttributeError 방지용 초기화)
+        # 🚨 거래소 로드 (인덱스 기반 강제 매칭)
         market_sheet = None
         market_df = pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
         
         try:
             market_sheet = spreadsheet.worksheet("거래소")
             m_values = market_sheet.get_all_values()
+            
             if len(m_values) > 1:
-                # 4개 열 강제 매핑
                 processed_rows = []
+                # 2행부터 실제 데이터로 처리 (A, B, C, D열 순서 고정)
                 for row in m_values[1:]:
-                    new_row = (row + [""] * 4)[:4]
-                    processed_rows.append(new_row)
+                    fixed_row = (row + ["", "", "", ""])[:4] # 데이터 부족 시 빈칸 채움
+                    processed_rows.append(fixed_row)
                 market_df = pd.DataFrame(processed_rows, columns=["판매자", "아이템이름", "가격", "상태"])
             else:
                 market_df = pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
         except:
-            pass # 시트가 없으면 기본 빈 데이터프레임 유지
+            pass
 
         def to_int(val):
             clean = re.sub(r'[^0-9]', '', str(val))
@@ -241,7 +242,7 @@ if isinstance(df, pd.DataFrame):
         job_rank['전투력_표시'] = job_rank['전투력_v'].apply(lambda x: f"{x:,}")
         st.dataframe(job_rank[['순위', '문파', '이름', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True, height=TABLE_HEIGHT)
 
-    with tabs[4]: # 🛍️ 문파 거래소 (AttributeError 방지 강화)
+    with tabs[4]: # 🛍️ 문파 거래소 (데이터 매칭 버그 수정)
         st.subheader("🛍️ 문파 전용 아이템 거래소")
         m_col1, m_col2 = st.columns([1, 2])
         with m_col1:
@@ -251,12 +252,11 @@ if isinstance(df, pd.DataFrame):
                 m_item = st.text_input("아이템 이름")
                 m_price = st.text_input("가격 (예: 무료나눔, 500다이아)")
                 submit_market = st.form_submit_button("아이템 등록하기")
-                
                 if submit_market:
                     if market_worksheet is not None:
                         new_row = [m_seller, m_item, m_price, "판매중"]
                         market_worksheet.append_row(new_row)
-                        st.success("등록 완료! RELOAD를 눌러주세요.")
+                        st.success("등록 완료! 상단 RELOAD를 눌러주세요.")
                         st.cache_data.clear()
                     else:
                         st.error("구글 시트에 '거래소' 탭이 없습니다!")
@@ -271,13 +271,14 @@ if isinstance(df, pd.DataFrame):
                         market_worksheet.update(header_list + edited_market.values.tolist())
                         st.rerun()
                 else:
+                    # '판매중' 글자가 포함되어 있거나 상태가 빈 것만 보여줌
                     display_m = market_df[(market_df['상태'].str.contains("판매중", na=True)) | (market_df['상태'] == "")]
                     st.dataframe(display_m, use_container_width=True, hide_index=True, height=500)
             else:
                 st.info("매물이 없습니다.")
 
-    with tabs[5]: # 📊 분석 통계 (UI 일원화)
-        st.subheader("📊 연합 전투력 및 직업 분석")
+    with tabs[5]: # 📊 분석 통계 (UI 통일)
+        st.subheader("📊 연합 실시간 분석 데이터")
         sc1, sc2, sc3 = st.columns(3)
         sc1.metric("통합 전투력", f"{df['전투력_v'].sum():,}")
         sc2.metric("평균 전투력", f"{int(df['전투력_v'].mean()):,}")
@@ -291,12 +292,12 @@ if isinstance(df, pd.DataFrame):
             fig_bar = px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포", color_discrete_sequence=['#76B900'])
             st.plotly_chart(fig_bar, use_container_width=True)
 
-    with tabs[6]: # 💰 정산 현황 (UI 일원화 및 분배 검증)
+    with tabs[6]: # 💰 정산 현황 (UI 통일 및 요약 대시보드)
         total_income = int(df['분배금_v'].sum())
         completed_payouts = df[df['정산상태'] == "정산완료"]['분배금_v'].sum()
         remaining_payouts = total_income - completed_payouts
         
-        st.subheader("💰 이번 주 연합 정산 관리")
+        st.subheader("💰 이번 주 연합 정산 현황")
         m1, m2, m3 = st.columns(3)
         m1.metric("총 분배금", f"{total_income:,} 💎")
         m2.metric("정산 완료", f"{completed_payouts:,} 💎")
@@ -321,6 +322,7 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error("데이터 로드 실패")
+
 
 
 
