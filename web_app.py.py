@@ -6,19 +6,18 @@ import re
 import plotly.express as px
 import streamlit.components.v1 as components
 
-# 1. 🎨 [디자인] NVIDIA 프리미엄 다크 테마 및 컴팩트 레이아웃 설정
+# 1. 🎨 [디자인] NVIDIA 프리미엄 다크 테마 및 균형 잡힌 레이아웃
 st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="wide")
 
 st.markdown("""
     <style>
-    /* 전체 배경 및 텍스트 고정 */
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
     h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; text-align: left !important; }
     
-    /* 🚨 사이드바 여백 극소화 (스크롤 방지) */
-    [data-testid="stSidebar"] > div:first-child { padding-top: 10px !important; }
-    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.3rem !important; }
-    .stDivider { margin: 0.4rem 0 !important; }
+    /* 🚨 사이드바: 답답함을 해소하는 여백 밸런스 조정 */
+    [data-testid="stSidebar"] > div:first-child { padding-top: 20px !important; }
+    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.8rem !important; }
+    .stDivider { margin: 1rem 0 !important; }
     
     /* 표(DataFrame) 스타일 강제 고정 */
     [data-testid="stDataFrame"] { background-color: #111111 !important; }
@@ -28,25 +27,23 @@ st.markdown("""
         text-align: left !important;
     }
 
-    /* 🏆 슬림 MVP 바 스타일 */
+    /* 🏆 MVP 및 참여자 명단 스타일 */
     .mvp-bar {
         background: linear-gradient(90deg, #111, #1a1a1a);
         border: 1px solid #76B900;
-        padding: 8px 15px;
+        padding: 10px 20px;
         border-radius: 8px;
         text-align: center;
-        margin-bottom: 15px;
+        margin-bottom: 20px;
         box-shadow: 0 0 10px rgba(118, 185, 0, 0.2);
     }
-    
-    /* 참여자 명단 박스 */
     .participant-box {
         background-color: #111;
         border-left: 4px solid #76B900;
-        padding: 8px;
+        padding: 10px;
         border-radius: 5px;
-        margin-bottom: 8px;
-        min-height: 60px;
+        margin-bottom: 10px;
+        min-height: 70px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -82,7 +79,6 @@ def load_all_guild_data():
         def to_int(val):
             clean = re.sub(r'[^0-9]', '', str(val))
             return int(clean) if clean else 0
-            
         def parse_growth(val):
             percent = re.search(r'([\d\.]+)(?=%)', str(val))
             value = re.search(r'\(([^)]+)\)', str(val))
@@ -93,7 +89,6 @@ def load_all_guild_data():
         df['전투력_v'] = df['전투력'].apply(to_int)
         df['누계_v'] = df['누계'].apply(to_int)
         df['분배금_v'] = df['분배금'].apply(to_int)
-        
         growth_parsed = df['성장'].apply(parse_growth)
         df['성장_v'] = [x[0] for x in growth_parsed]
         df['성장_표시'] = [f"{x[0]}% ({x[1]})" for x in growth_parsed]
@@ -114,30 +109,36 @@ spreadsheet, worksheet, df, sheet_header = load_all_guild_data()
 
 # 📊 3. 화면 구성
 if isinstance(df, pd.DataFrame):
-    # --- 사이드바 영역 (여백 최적화) ---
+    # --- 사이드바 영역 (답답함 해소 버전) ---
     with st.sidebar:
+        # 로고 영역: 여유로운 여백 확보
         st.markdown(f"""
-            <div style="text-align: center; padding: 5px 0 5px 0;">
-                <img src="https://img.icons8.com/neon/150/shield.png" width="70" style="filter: drop-shadow(0 0 5px #76B900);">
-                <div style="margin-top: 5px; display: flex; justify-content: center; gap: 4px;">
-                    <span style="background: #111; border: 1px solid #76B900; color: #76B900; font-size: 9px; padding: 1px 6px; border-radius: 3px; font-weight: bold;">ALLIANCE</span>
-                    <span style="background: #111; border: 1px solid #76B900; color: #76B900; font-size: 9px; padding: 1px 6px; border-radius: 3px; font-weight: bold;">ACTIVE</span>
+            <div style="text-align: center; padding: 15px 0 20px 0;">
+                <img src="https://img.icons8.com/neon/150/shield.png" width="80" style="filter: drop-shadow(0 0 8px #76B900);">
+                <div style="margin-top: 15px; display: flex; justify-content: center; gap: 6px;">
+                    <span style="background: rgba(118,185,0,0.1); border: 1px solid #76B900; color: #76B900; font-size: 10px; padding: 2px 10px; border-radius: 5px; font-weight: bold;">ALLIANCE</span>
+                    <span style="background: rgba(118,185,0,0.1); border: 1px solid #76B900; color: #76B900; font-size: 10px; padding: 2px 10px; border-radius: 5px; font-weight: bold;">ACTIVE</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
-        # 🕒 컴팩트 프리미엄 라이브 타이머
+        # 🕒 쾌적한 실시간 라이브 타이머
         timer_html = """
         <div id="boss-timer-hq" style="
-            background: linear-gradient(180deg, #121212 0%, #080808 100%);
+            background: linear-gradient(135deg, #151515 0%, #0a0a0a 100%);
             border: 1px solid rgba(118, 185, 0, 0.4);
-            padding: 8px; border-radius: 8px; text-align: center; font-family: sans-serif; line-height: 1.0;
+            padding: 18px 10px; border-radius: 12px; text-align: center; font-family: sans-serif;
         ">
-            <div style="display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 2px;">
-                <div style="width: 5px; height: 5px; background: #ff4b4b; border-radius: 50%; animation: blink 1s infinite;"></div>
-                <span id="target-label" style="font-size: 10px; font-weight: bold; color: #888;">--:-- BOSS</span>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 8px;">
+                <div style="width: 7px; height: 7px; background: #ff4b4b; border-radius: 50%; animation: blink 1.5s infinite;"></div>
+                <span id="target-label" style="font-size: 12px; font-weight: bold; color: #888; letter-spacing: 1px;">NEXT BOSS SCAN</span>
             </div>
-            <div id="countdown-val" style="font-size: 30px; font-weight: 900; color: #76B900; font-family: 'Courier New', monospace; text-shadow: 0 0 8px rgba(118, 185, 0, 0.5);">00:00:00</div>
+            <div id="countdown-val" style="
+                font-size: 34px; font-weight: 900; color: #76B900; 
+                font-family: 'Courier New', monospace; text-shadow: 0 0 10px rgba(118, 185, 0, 0.5);
+                margin: 5px 0;
+            ">00:00:00</div>
+            <div style="font-size: 10px; color: #444; letter-spacing: 2px; margin-top: 8px; border-top: 1px solid #222; padding-top: 8px;">REMAINING TIME</div>
         </div>
         <style> @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } } </style>
         <script>
@@ -154,45 +155,49 @@ if isinstance(df, pd.DataFrame):
             const h = String(Math.floor(diff / 3600000)).padStart(2, '0');
             const m = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0');
             const s = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
-            document.getElementById('target-label').innerText = target.getHours() + ":00 NEXT BOSS";
+            document.getElementById('target-label').innerText = target.getHours() + ":00 BOSS RADAR";
             document.getElementById('countdown-val').innerText = h + ":" + m + ":" + s;
         }
         setInterval(updateTimer, 1000); updateTimer();
         </script>
         """
-        components.html(timer_html, height=85)
+        components.html(timer_html, height=160)
         
-        c1, c2 = st.columns(2)
-        c1.metric("인원", f"{len(df)}명")
-        c2.metric("총투력", f"{df['전투력_v'].sum():,}")
+        # 실시간 지표 영역
+        st.subheader("📊 연합 실시간 지표")
+        sc1, sc2 = st.columns(2)
+        sc1.metric("인원", f"{len(df)}명")
+        sc2.metric("총투력", f"{df['전투력_v'].sum():,}")
         st.divider()
         
+        # 유튜브 방송 센터
         youtube_links = [("가미가미 TV", "https://www.youtube.com/@gamigami706", "youtube-play"),
                          ("왕코 방송국", "https://www.youtube.com/@스트리머왕코", "controller"),
                          ("아이엠솔이", "https://www.youtube.com/@아이엠솔이", "microphone")]
         for name, url, icon in youtube_links:
-            sc1, sc2 = st.columns([1, 4])
-            with sc1: st.image(f"https://img.icons8.com/neon/96/{icon}.png", width=22)
-            with sc2: st.link_button(name, url, use_container_width=True)
+            y1, y2 = st.columns([1, 4])
+            with y1: st.image(f"https://img.icons8.com/neon/96/{icon}.png", width=25)
+            with y2: st.link_button(name, url, use_container_width=True)
             
         st.divider()
         with st.expander("🔐 ADMIN", expanded=False):
-            admin_pw = st.text_input("PW", type="password")
-            # 🚨 비밀번호 수정 위치
+            admin_pw = st.text_input("PASSWORD", type="password")
+            # 🚨 비밀번호 수정은 여기서 하세요!
             is_admin = (admin_pw == "1234") 
-            if st.button("RELOAD"):
+            if st.button("SYSTEM RELOAD"):
                 st.cache_data.clear()
                 st.rerun()
 
     # --- 메인 영역 ---
-    st.title("🛡️ Chosun Swordsman Classic")
+    st.title("🛡️ COMMAND CENTER")
     
-    search_q = st.text_input("🔍 연합원 검색", placeholder="닉네임 입력")
+    # 🔍 검색창
+    search_q = st.text_input("🔍 연합원 검색", placeholder="닉네임을 입력하세요")
     if search_q:
-        search_res = df[df['이름'].str.contains(search_q, na=False, case=False)].copy()
-        if not search_res.empty:
-            search_res['전투력_표시'] = search_res['전투력_v'].apply(lambda x: f"{x:,}")
-            st.dataframe(search_res[['문파', '이름', '직업', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True)
+        res = df[df['이름'].str.contains(search_q, na=False, case=False)].copy()
+        if not res.empty:
+            res['전투력_표시'] = res['전투력_v'].apply(lambda x: f"{x:,}")
+            st.dataframe(res[['문파', '이름', '직업', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True)
         st.divider()
 
     tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "📊 분석 통계", "💰 정산 현황"])
@@ -202,6 +207,7 @@ if isinstance(df, pd.DataFrame):
         if max_val > 0:
             mvps = df[df['누계_v'] == max_val]['이름'].tolist()
             st.markdown(f"<div class='mvp-bar'><span style='color:#76B900; font-weight:bold;'>🏆 이번 주 보탐 MVP : </span><span style='color:white;'>{', '.join(mvps)}</span> <small>({max_val}회 참여)</small></div>", unsafe_allow_html=True)
+        
         p_cols = st.columns(3)
         t_info = [("14시", "14_p"), ("18시", "18_p"), ("20시", "22_p")]
         for i, (t_name, p_col) in enumerate(t_info):
@@ -209,6 +215,7 @@ if isinstance(df, pd.DataFrame):
                 names = df[df[p_col]]['이름'].tolist()
                 st.markdown(f"#### 🕒 {t_name} ({len(names)}명)")
                 st.markdown(f"<div class='participant-box'>{', '.join(names) if names else '참여자 없음'}</div>", unsafe_allow_html=True)
+        
         st.divider()
         boss_vis = df.copy()
         for col in ['14시', '18시', '22시']:
@@ -252,7 +259,7 @@ if isinstance(df, pd.DataFrame):
         money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,} 다이아")
         if is_admin:
             edited_df = st.data_editor(money_rank[['순위', '이름', '분배금_표시', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True)
-            if st.button("💾 정산 결과 저장"):
+            if st.button("💾 정산 데이터 저장"):
                 status_idx = sheet_header.index("정산상태") + 1
                 for _, row in edited_df.iterrows():
                     cell = worksheet.find(row['이름'])
@@ -265,6 +272,7 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error("데이터 로드 실패")
+
 
 
 
