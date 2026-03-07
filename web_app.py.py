@@ -146,7 +146,7 @@ if isinstance(df, pd.DataFrame):
         st.divider()
         with st.expander("🔐 ADMIN", expanded=False):
             admin_pw = st.text_input("PASSWORD", type="password")
-            is_admin = (admin_pw == "1234") 
+            is_admin = (admin_pw == "가왕솔이12") 
 
     st.title("🛡️ COMMAND CENTER")
     tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
@@ -245,3 +245,4 @@ if isinstance(df, pd.DataFrame):
         display_custom_table(job_rank, ['순위', '문파', '이름', '전투력', '성장'], ['순위', '문파', '이름', '전투력', '성장'])
 
 else: st.error("데이터 로드 실패")
+
