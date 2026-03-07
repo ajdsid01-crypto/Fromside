@@ -142,7 +142,7 @@ if isinstance(df, pd.DataFrame):
         c1, c2 = st.columns(2)
         c1.metric("인원", f"{len(df)}명"); c2.metric("총투력", f"{df['전투력_v'].sum():,}")
         st.divider()
-        youtube_links = [("가미가미 TV", "https://www.youtube.com/@gamigami706", "youtube-play"), ("왕코 방송국", "https://www.youtube.com/@스트리머왕코", "controller"), ("아이엠솔이", "https://www.youtube.com/@아이엠솔이", "microphone")]
+        youtube_links = [("가미가미", "https://www.youtube.com/@gamigami706", "youtube-play"), ("왕코 방송국", "https://www.youtube.com/@스트리머왕코", "controller"), ("아이엠솔이", "https://www.youtube.com/@아이엠솔이", "microphone")]
         for name, url, icon in youtube_links:
             y1, y2 = st.columns([1, 4])
             with y1: st.image(f"https://img.icons8.com/neon/96/{icon}.png", width=22)
@@ -342,4 +342,5 @@ if isinstance(df, pd.DataFrame):
         with g2: st.plotly_chart(px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포"), use_container_width=True)
 
 else: st.error("데이터 로드 실패")
+
 
