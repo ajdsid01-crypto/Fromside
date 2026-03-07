@@ -14,6 +14,7 @@ st.markdown("""
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
     h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; text-align: left !important; }
     
+    /* 사이드바 여백 최적화 */
     [data-testid="stSidebar"] > div:first-child { padding-top: 20px !important; }
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.8rem !important; }
     .stDivider { margin: 1rem 0 !important; }
@@ -32,6 +33,7 @@ st.markdown("""
         border-radius: 8px;
         text-align: center;
         margin-bottom: 20px;
+        box-shadow: 0 0 10px rgba(118, 185, 0, 0.2);
     }
     .participant-box {
         background-color: #111;
@@ -66,16 +68,21 @@ def load_all_guild_data():
         client = gspread.authorize(creds)
         spreadsheet = client.open("조협오산오살")
         
+        # 메인 시트 (연합원 명단)
         sheet = spreadsheet.sheet1
         all_data = sheet.get_all_values()
         header, rows = all_data[6], all_data[7:]
         df = pd.DataFrame(rows, columns=header)
         df = df[df['이름'].str.strip() != ""].copy()
         
+        # 거래소 시트 로드 로직 (버그 방지형)
         try:
             market_sheet = spreadsheet.worksheet("거래소")
-            market_data = market_sheet.get_all_records()
-            market_df = pd.DataFrame(market_data)
+            m_values = market_sheet.get_all_values()
+            if len(m_values) > 1:
+                market_df = pd.DataFrame(m_values[1:], columns=m_values[0])
+            else:
+                market_df = pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
         except:
             market_sheet, market_df = None, pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
 
@@ -113,6 +120,7 @@ spreadsheet, worksheet, df, sheet_header, market_worksheet, market_df = load_all
 # 📊 3. 화면 구성
 if isinstance(df, pd.DataFrame):
     with st.sidebar:
+        # [로고 및 타이머 영역]
         st.markdown(f"""
             <div style="text-align: center; padding: 15px 0 20px 0;">
                 <img src="https://img.icons8.com/neon/150/shield.png" width="80" style="filter: drop-shadow(0 0 8px #76B900);">
@@ -225,6 +233,7 @@ if isinstance(df, pd.DataFrame):
     with tabs[4]: # 🛍️ 문파 거래소
         st.subheader("🛍️ 문파 전용 아이템 거래소")
         m_col1, m_col2 = st.columns([1, 2])
+        
         with m_col1:
             st.markdown("### 📝 아이템 등록")
             with st.form("market_form", clear_on_submit=True):
@@ -232,28 +241,36 @@ if isinstance(df, pd.DataFrame):
                 m_item = st.text_input("아이템 이름")
                 m_price = st.text_input("가격 (예: 무료나눔, 500다이아)")
                 submit_market = st.form_submit_button("아이템 등록하기")
+                
                 if submit_market and market_worksheet:
                     new_row = [m_seller, m_item, m_price, "판매중"]
                     market_worksheet.append_row(new_row)
-                    st.success("아이템이 등록되었습니다!")
+                    st.success("아이템이 등록되었습니다! [RELOAD]를 누르세요.")
                     st.cache_data.clear()
-                    st.rerun()
+
         with m_col2:
             st.markdown("### 📦 매물 목록")
             if not market_df.empty:
+                # 데이터 정제 (공백 제거)
+                market_df.columns = [c.strip() for c in market_df.columns]
+                
                 if is_admin:
                     edited_market = st.data_editor(market_df, use_container_width=True, hide_index=True, height=500,
                                                    column_config={"상태": st.column_config.SelectboxColumn("상태", options=["판매중", "판매완료"])})
-                    if st.button("💾 거래소 상태 업데이트"):
+                    if st.button("💾 거래소 업데이트"):
                         market_worksheet.clear()
                         market_worksheet.update([market_df.columns.values.tolist()] + edited_market.values.tolist())
                         st.cache_data.clear()
                         st.rerun()
                 else:
-                    display_m = market_df[market_df['상태'] == "판매중"]
-                    st.dataframe(display_m, use_container_width=True, hide_index=True, height=500)
+                    # '판매중' 상태만 필터링해서 보여주기
+                    if '상태' in market_df.columns:
+                        display_m = market_df[market_df['상태'].str.contains("판매중", na=False)]
+                        st.dataframe(display_m, use_container_width=True, hide_index=True, height=500)
+                    else:
+                        st.dataframe(market_df, use_container_width=True, hide_index=True, height=500)
             else:
-                st.write("현재 등록된 아이템이 없습니다.")
+                st.warning("등록된 아이템이 없습니다. 1행 헤더를 확인하세요.")
 
     with tabs[5]: # 📊 분석 통계
         sc1, sc2, sc3 = st.columns(3)
@@ -269,44 +286,23 @@ if isinstance(df, pd.DataFrame):
             fig_bar = px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포", color_discrete_sequence=['#76B900'])
             st.plotly_chart(fig_bar, use_container_width=True)
 
-    with tabs[6]: # 💰 정산 현황 (분배 검증 로직 강화)
-        st.subheader("💰 이번 주 연합 정산 관리")
-        
-        # 💎 분배금 검증용 입력칸 (관리자만 가능)
-        if is_admin:
-            with st.expander("🛠️ 이번 주 총 수익 설정", expanded=True):
-                col_a, col_b = st.columns(2)
-                total_income = col_a.number_input("이번 주 총 획득 다이아", min_value=0, value=int(df['분배금_v'].sum()))
-                st.caption("※ 총 획득 다이아와 연합원 분배금 합계가 일치해야 합니다.")
-        else:
-            total_income = int(df['분배금_v'].sum())
-
-        # 📊 실시간 계산
-        sum_distributions = df['분배금_v'].sum()
+    with tabs[6]: # 💰 정산 현황
+        # [정산 요약 대시보드]
+        total_income = int(df['분배금_v'].sum())
         completed_payouts = df[df['정산상태'] == "정산완료"]['분배금_v'].sum()
-        remaining_payouts = sum_distributions - completed_payouts
-        unallocated = total_income - sum_distributions # 분배되지 않고 남은 다이아
-
-        # 🚀 대시보드 표시
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("총 수익", f"{total_income:,} 💎")
-        m2.metric("분배 설정액", f"{sum_distributions:,} 💎", help="연합원들에게 할당된 총금액")
-        m3.metric("미지급 잔액", f"{remaining_payouts:,} 💎", help="아직 '정산완료' 체크가 안 된 금액")
+        remaining_payouts = total_income - completed_payouts
         
-        # 분배 오류 체크 (총 수익 != 분배 설정액일 경우 경고)
-        if unallocated != 0:
-            m4.metric("분배 잔여분", f"{unallocated:,} 💎", delta="오차 발생", delta_color="inverse")
-        else:
-            m4.metric("분배 잔여분", "0 💎", delta="완벽한 분배", delta_color="normal")
-        
+        m1, m2, m3 = st.columns(3)
+        m1.metric("총 분배금", f"{total_income:,} 💎")
+        m2.metric("정산 완료", f"{completed_payouts:,} 💎")
+        m3.metric("미지급 잔액", f"{remaining_payouts:,} 💎", delta_color="inverse")
         st.divider()
 
         money_rank = add_medal_logic(df[df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
         money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,} 다이아")
-        
         if is_admin:
             edited_df = st.data_editor(money_rank[['순위', '이름', '분배금_표시', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True, height=TABLE_HEIGHT)
-            if st.button("💾 정산 데이터 저장 및 새로고침"):
+            if st.button("💾 정산 데이터 저장"):
                 status_idx = sheet_header.index("정산상태") + 1
                 for _, row in edited_df.iterrows():
                     cell = worksheet.find(row['이름'])
@@ -319,6 +315,7 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error("데이터 로드 실패")
+
 
 
 
