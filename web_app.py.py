@@ -5,8 +5,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 import re
 import plotly.express as px
 
-# 1. 🎨 [디자인] NVIDIA 다크 테마 및 전체 레이아웃 설정 (PC/모바일 통합)
-st.set_page_config(page_title="", layout="wide")
+# 1. 🎨 [디자인] NVIDIA 다크 테마 및 전체 레이아웃 설정
+st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="wide")
 
 st.markdown("""
     <style>
@@ -14,7 +14,7 @@ st.markdown("""
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
     h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; text-align: left !important; }
     
-    /* 표(DataFrame) 스타일 강제 고정 (다크모드 강제) */
+    /* 표(DataFrame) 스타일 강제 고정 */
     [data-testid="stDataFrame"] { background-color: #111111 !important; }
     [data-testid="stDataFrame"] div[data-baseweb="table"] div {
         text-align: left !important;
@@ -43,6 +43,14 @@ st.markdown("""
         margin-bottom: 10px;
         min-height: 80px;
     }
+
+    /* 사이드바 로고 영역 스타일 */
+    .sidebar-header {
+        text-align: center;
+        padding: 20px 0;
+        border-bottom: 1px solid #333;
+        margin-bottom: 20px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -58,7 +66,7 @@ def add_medal_logic(df):
     df['순위'] = df['Rank'].apply(medal_icon)
     return df.drop(columns=['Rank'])
 
-# 📂 2. 데이터 로드 및 정밀 전처리
+# 📂 2. 데이터 로드 및 전처리
 @st.cache_data(ttl=10)
 def load_all_guild_data():
     try:
@@ -78,7 +86,7 @@ def load_all_guild_data():
             clean = re.sub(r'[^0-9]', '', str(val))
             return int(clean) if clean else 0
 
-        # 성장률(%)과 실제수치 분리 로직 (가독성 요청 반영)
+        # 성장률(%) 정렬 로직
         def parse_growth(val):
             percent = re.search(r'([\d\.]+)(?=%)', str(val))
             value = re.search(r'\(([^)]+)\)', str(val))
@@ -91,8 +99,8 @@ def load_all_guild_data():
         df['분배금_v'] = df['분배금'].apply(to_int)
         
         growth_parsed = df['성장'].apply(parse_growth)
-        df['성장_v'] = [x[0] for x in growth_parsed] # 정렬용 숫자
-        df['성장_표시'] = [f"{x[0]}% ({x[1]})" for x in growth_parsed] # 화면 표시용 (요청사항)
+        df['성장_v'] = [x[0] for x in growth_parsed]
+        df['성장_표시'] = [f"{x[0]}% ({x[1]})" for x in growth_parsed]
 
         def is_p(val): return str(val).strip().lower() in ['o', 'ㅇ', 'v']
         df['14_p'], df['18_p'], df['22_p'] = df['14시'].apply(is_p), df['18시'].apply(is_p), df['22시'].apply(is_p)
@@ -103,14 +111,26 @@ def load_all_guild_data():
 
 spreadsheet, worksheet, df, sheet_header = load_all_guild_data()
 
-# 📊 3. 화면 구성 및 사이드바
+# 📊 3. 메인 화면 구성
 if isinstance(df, pd.DataFrame):
+    # --- 사이드바 (허전함 해결 디자인 적용) ---
     with st.sidebar:
-        st.markdown("<h2 style='text-align: center; color: #76B900;'></h2>", unsafe_allow_html=True)
+        st.markdown("""
+            <div style="text-align: center; padding-bottom: 10px;">
+                <img src="https://img.icons8.com/neon/150/shield.png" width="80">
+                <h2 style='color: #76B900; margin-top: 10px; margin-bottom: 0px;'>오늘만산다,살자</h2>
+                <p style='color: #555; font-size: 11px; letter-spacing: 1px;'>ALLIANCE HQ</p>
+                <div style="display: inline-block; padding: 2px 10px; background-color: #1a1a1a; border: 1px solid #76B900; border-radius: 15px; margin-top: 5px;">
+                    <span style="color: #76B900; font-size: 10px; font-weight: bold;">● SYSTEM ONLINE</span>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
         st.divider()
+        
         st.subheader("📊 연합 현황")
-        st.metric("총 인원", f"{len(df)}명")
-        st.metric("연합 총 투력", f"{df['전투력_v'].sum():,}")
+        c_tot1, c_tot2 = st.columns(2)
+        c_tot1.metric("총 인원", f"{len(df)}명")
+        c_tot2.metric("총 전투력", f"{df['전투력_v'].sum():,}")
         st.divider()
         
         st.subheader("📺 연합 방송 센터")
@@ -128,12 +148,12 @@ if isinstance(df, pd.DataFrame):
         with st.expander("🔐 관리자 접속"):
             admin_pw = st.text_input("암호 입력", type="password")
             is_admin = (admin_pw == "1234") 
-            if st.button("🔄 데이터 강제 새로고침"):
+            if st.button("🔄 데이터 새로고침"):
                 st.cache_data.clear()
                 st.rerun()
 
     # --- 메인 영역 ---
-    st.title("🛡️ 조협클래식 오늘만산다/살자")
+    st.title("🛡️ 조협클래식 통합 관리 시스템")
     
     # 🔍 검색창
     search_q = st.text_input("🔍 캐릭터명 검색 (닉네임 입력)", placeholder="예: 가미가미")
@@ -170,7 +190,7 @@ if isinstance(df, pd.DataFrame):
         cp_rank['전투력_표시'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
         st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True)
 
-    with tabs[2]: # 🔥 성장 랭킹 (개선된 정렬 적용)
+    with tabs[2]: # 🔥 성장 랭킹
         st.subheader("🔥 실시간 성장률 TOP 랭킹")
         growth_rank = add_medal_logic(df.sort_values(by="성장_v", ascending=False))
         st.dataframe(growth_rank[['순위', '문파', '이름', '성장_표시', '전투력']], use_container_width=True, hide_index=True)
@@ -218,16 +238,3 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error(f"데이터 로드 실패: {df}")
-
-
-
-
-
-
-
-
-
-
-
-
-
