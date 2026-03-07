@@ -193,7 +193,7 @@ if isinstance(df, pd.DataFrame):
         st.divider()
         with st.expander("🔐 ADMIN"):
             admin_pw = st.text_input("PW", type="password")
-            is_admin = (admin_pw == "왕가솔이123") 
+            is_admin = (admin_pw == "dhkdrkthfdl123") 
             if st.button("RELOAD"):
                 st.cache_data.clear()
                 st.rerun()
@@ -282,6 +282,7 @@ if isinstance(df, pd.DataFrame):
 
 else:
     st.error("데이터 로드 실패")
+
 
 
 
