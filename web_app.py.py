@@ -5,6 +5,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import re
 import plotly.express as px
 from datetime import datetime, time, timedelta
+import time as time_module
 
 # 1. 🎨 [디자인] NVIDIA 다크 테마 및 타이머 스타일 설정
 st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="wide")
@@ -21,7 +22,7 @@ st.markdown("""
         text-align: left !important;
     }
 
-    /* 🕒 보스 타이머 전용 스타일 */
+    /* 🕒 실시간 보스 타이머 박스 */
     .boss-timer-box {
         background-color: #111;
         border: 1px solid #76B900;
@@ -29,39 +30,37 @@ st.markdown("""
         border-radius: 10px;
         text-align: center;
         margin-bottom: 20px;
-        box-shadow: 0 0 10px rgba(118, 185, 0, 0.3);
-    }
-    .timer-text {
-        font-size: 20px;
-        font-weight: bold;
-        color: #FFFFFF;
-        margin-bottom: 5px;
+        box-shadow: 0 0 15px rgba(118, 185, 0, 0.3);
     }
     .timer-countdown {
-        font-size: 24px;
+        font-size: 28px;
         color: #76B900;
+        font-weight: bold;
         font-family: 'Courier New', Courier, monospace;
+        text-shadow: 0 0 5px #76B900;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 🏆 실시간 보스 타이머 계산 함수
-def get_boss_countdown():
-    now = datetime.now()
+# 🏆 한국 시간(KST) 기준 실시간 보스 타이머 계산 함수
+def get_kst_countdown():
+    # 서버 시간이 UTC일 경우를 대비해 한국 시간(KST, UTC+9)으로 강제 변환
+    now_utc = datetime.utcnow()
+    now_kst = now_utc + timedelta(hours=9)
+    
     # 보스 타임 설정 (14시, 18시, 20시)
     boss_times = [time(14, 0), time(18, 0), time(20, 0)]
     
     target_time = None
     for bt in boss_times:
-        if now.time() < bt:
-            target_time = datetime.combine(now.date(), bt)
+        if now_kst.time() < bt:
+            target_time = datetime.combine(now_kst.date(), bt)
             break
     
-    # 만약 오늘 모든 보스 타임이 지났다면 내일 첫 보스(14시)로 설정
     if not target_time:
-        target_time = datetime.combine(now.date() + timedelta(days=1), boss_times[0])
+        target_time = datetime.combine(now_kst.date() + timedelta(days=1), boss_times[0])
     
-    diff = target_time - now
+    diff = target_time - now_kst
     hours, remainder = divmod(diff.seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     
@@ -79,7 +78,7 @@ def add_medal_logic(df):
     df['순위'] = df['Rank'].apply(medal_icon)
     return df.drop(columns=['Rank'])
 
-# 📂 2. 데이터 로드 (기존 동일)
+# 📂 2. 데이터 로드 (캐시 10초)
 @st.cache_data(ttl=10)
 def load_all_guild_data():
     try:
@@ -110,8 +109,10 @@ def load_all_guild_data():
         growth_parsed = df['성장'].apply(parse_growth)
         df['성장_v'] = [x[0] for x in growth_parsed]
         df['성장_표시'] = [f"{x[0]}% ({x[1]})" for x in growth_parsed]
+        
         def is_p(val): return str(val).strip().lower() in ['o', 'ㅇ', 'v']
         df['14_p'], df['18_p'], df['22_p'] = df['14시'].apply(is_p), df['18시'].apply(is_p), df['22시'].apply(is_p)
+        
         return spreadsheet, sheet, df, header
     except Exception as e:
         return None, None, str(e), None
@@ -120,18 +121,20 @@ spreadsheet, worksheet, df, sheet_header = load_all_guild_data()
 
 # 📊 3. 화면 구성
 if isinstance(df, pd.DataFrame):
-    # --- 사이드바 (타이머 적용) ---
+    # --- 사이드바 (실시간 타이머 포함) ---
     with st.sidebar:
-        # 타이틀 축소 및 타이머 배치
-        target_t, countdown = get_boss_countdown()
-        st.markdown(f"""
+        # 🕒 라이브 타이머 영역
+        timer_placeholder = st.empty()
+        
+        # 1초마다 타이머만 업데이트하는 로직
+        target_t, countdown = get_kst_countdown()
+        timer_placeholder.markdown(f"""
             <div style="text-align: center; padding-bottom: 5px;">
                 <img src="https://img.icons8.com/neon/150/shield.png" width="50">
-                <h4 style='color: #76B900; margin-top: 5px; margin-bottom: 10px;'>오늘만산다,살자</h4>
+                <h4 style='color: #76B900; margin-top: 5px;'>오늘만산다,살자</h4>
                 <div class="boss-timer-box">
-                    <div class="timer-text">다음 보스 타임 [{target_t}]</div>
+                    <div style="font-size: 14px; color: #888;">다음 보스 [{target_t}] 젠타임</div>
                     <div class="timer-countdown">{countdown}</div>
-                    <div style="font-size: 10px; color: #555; margin-top: 5px;">* 페이지 로드 시각 기준</div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -151,20 +154,12 @@ if isinstance(df, pd.DataFrame):
             sc1, sc2 = st.columns([1, 4])
             with sc1: st.image(f"https://img.icons8.com/neon/96/{icon}.png", width=30)
             with sc2: st.link_button(name, url, use_container_width=True)
-        
-        st.divider()
-        with st.expander("🔐 관리자 접속"):
-            admin_pw = st.text_input("암호 입력", type="password")
-            is_admin = (admin_pw == "1234") 
-            if st.button("🔄 데이터 새로고침"):
-                st.cache_data.clear()
-                st.rerun()
 
     # --- 메인 영역 ---
     st.title("🛡️ 조협클래식 통합 관리 시스템")
     
     # 🔍 검색창
-    search_q = st.text_input("🔍 캐릭터명 검색 (닉네임 입력)", placeholder="예: 가미가미")
+    search_q = st.text_input("🔍 캐릭터명 검색", placeholder="닉네임 입력")
     if search_q:
         search_res = df[df['이름'].str.contains(search_q, na=False, case=False)].copy()
         if not search_res.empty:
@@ -174,14 +169,14 @@ if isinstance(df, pd.DataFrame):
 
     tabs = st.tabs(["⚔️ 보스 현황", "🛡️ 연합 전력", "🔥 성장 랭킹", "🏆 직업별 랭킹", "📊 분석 통계", "💰 정산 현황"])
 
-    with tabs[0]: # ⚔️ 보스 현황 (시각화)
+    with tabs[0]: # 보스 현황
         max_val = df['누계_v'].max()
         if max_val > 0:
             mvps = df[df['누계_v'] == max_val]['이름'].tolist()
             st.markdown(f"<div class='mvp-bar'><span style='color:#76B900; font-weight:bold;'>🏆 이번 주 보탐 MVP : </span><span style='color:white;'>{', '.join(mvps)}</span> <small>({max_val}회 참여)</small></div>", unsafe_allow_html=True)
         
         p_cols = st.columns(3)
-        t_info = [("14시", "14_p"), ("18시", "18_p"), ("20시", "22_p")] # 20시 요청이나 데이터 연동은 22시 컬럼 활용
+        t_info = [("14시", "14_p"), ("18시", "18_p"), ("20시", "22_p")]
         for i, (t_name, p_col) in enumerate(t_info):
             with p_cols[i]:
                 names = df[df[p_col]]['이름'].tolist()
@@ -196,25 +191,21 @@ if isinstance(df, pd.DataFrame):
         st.dataframe(boss_rank[['순위', '문파', '이름', '14시', '18시', '22시', '누계_v']], use_container_width=True, hide_index=True,
                      column_config={"누계_v": st.column_config.ProgressColumn("참여 성실도", format="%d회", min_value=0, max_value=int(max_val) if max_val > 0 else 21)})
 
-    # [중략: 연합전력, 성장랭킹, 직업랭킹, 분석통계, 정산현황 탭은 이전과 동일]
+    # [나머지 탭 로직은 이전과 동일하게 유지]
     with tabs[1]:
         cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
         cp_rank['전투력_표시'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
         st.dataframe(cp_rank[['순위', '문파', '이름', '직업', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True)
-
     with tabs[2]:
         growth_rank = add_medal_logic(df.sort_values(by="성장_v", ascending=False))
         st.dataframe(growth_rank[['순위', '문파', '이름', '성장_표시', '전투력']], use_container_width=True, hide_index=True)
-
     with tabs[3]:
         job_list = sorted(df['직업'].unique())
         selected_job = st.selectbox("직업을 선택하세요", job_list)
         job_rank = add_medal_logic(df[df['직업'] == selected_job].sort_values(by="전투력_v", ascending=False))
         job_rank['전투력_표시'] = job_rank['전투력_v'].apply(lambda x: f"{x:,}")
         st.dataframe(job_rank[['순위', '문파', '이름', '전투력_표시', '성장_표시']], use_container_width=True, hide_index=True)
-
     with tabs[4]:
-        st.subheader("📊 연합 핵심 지표 분석")
         sc1, sc2, sc3 = st.columns(3)
         sc1.metric("통합 전투력", f"{df['전투력_v'].sum():,}")
         sc2.metric("평균 전투력", f"{int(df['전투력_v'].mean()):,}")
@@ -227,13 +218,12 @@ if isinstance(df, pd.DataFrame):
         with g2:
             fig_bar = px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포", color_discrete_sequence=['#76B900'])
             st.plotly_chart(fig_bar, use_container_width=True)
-
     with tabs[5]:
         money_rank = add_medal_logic(df[df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
         money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,} 다이아")
         if is_admin:
             edited_df = st.data_editor(money_rank[['순위', '이름', '분배금_표시', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True)
-            if st.button("💾 정산 데이터 저장하기"):
+            if st.button("💾 저장"):
                 status_idx = sheet_header.index("정산상태") + 1
                 for _, row in edited_df.iterrows():
                     cell = worksheet.find(row['이름'])
@@ -243,6 +233,14 @@ if isinstance(df, pd.DataFrame):
         else:
             money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
             st.dataframe(money_rank[['순위', '문파', '이름', '분배금_표시', '상태']], use_container_width=True, hide_index=True)
+
+    # ⏳ 실시간 카운트다운을 위한 자동 새로고침 (매분마다 자동 갱신되도록 설정)
+    # Streamlit은 스크립트가 끝날 때 다시 실행할 트리거가 필요합니다.
+    # 1초마다 루프를 돌리면 서버 부하가 커질 수 있으므로, 60초마다 페이지를 새로 고칩니다.
+    # 만약 '초 단위'로 줄어드는 걸 보고 싶다면 아래 sleep을 1로 바꾸면 되지만, 
+    # 데이터 로딩 속도를 고려해 30~60초가 가장 적당합니다.
+    time_module.sleep(60)
+    st.rerun()
 
 else:
     st.error("데이터 로드 실패")
