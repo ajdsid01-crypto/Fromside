@@ -20,7 +20,7 @@ st.markdown("""
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.8rem !important; }
     .stDivider { margin: 0.8rem 0 !important; }
     
-    /* 🚨 표 내부 데이터 좌측 정렬 강제 (HTML 테이블용) */
+    /* 표 내부 데이터 좌측 정렬 강제 (HTML 테이블용) */
     .custom-table {
         width: 100%; border-collapse: collapse; color: white; background-color: #111;
         border-radius: 10px; overflow: hidden; margin-top: 10px;
@@ -34,7 +34,6 @@ st.markdown("""
     }
     .custom-table tr:hover { background-color: #151515; }
 
-    /* 🛍️ 카드형 거래소 디자인 */
     .market-card {
         background: #111; border: 1px solid #222; border-left: 5px solid #76B900;
         padding: 18px; border-radius: 12px; margin-bottom: 5px;
@@ -106,15 +105,17 @@ def load_all_guild_data():
 
 spreadsheet, worksheet, df, sheet_header, market_worksheet, market_df = load_all_guild_data()
 
-# 📊 3. 화면 구성
+# 📊 3. 화면 구성 및 인증 상태 확인
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
 if isinstance(df, pd.DataFrame):
     with st.sidebar:
         st.markdown("<div style='text-align:center; padding-bottom:10px;'><img src='https://img.icons8.com/neon/150/shield.png' width='75'></div>", unsafe_allow_html=True)
         
-        # [복구] 타이머 상단 라벨
         timer_html = """
         <div style="background:linear-gradient(135deg,#151515,#0a0a0a); border:1px solid #76B90066; padding:15px; border-radius:10px; text-align:center;">
-            <div style="font-size:11px; color:#888; font-weight:bold; margin-bottom:5px;">NEXT BOSS TIMER</div>
+            <div style="font-size:11px; color:#888; font-weight:bold; margin-bottom:5px;">NEXT BOSS RADAR</div>
             <div id="sidebar-timer" style="font-size:32px; font-weight:900; color:#76B900; font-family:monospace;">00:00:00</div>
         </div>
         <script>
@@ -144,14 +145,24 @@ if isinstance(df, pd.DataFrame):
             with y1: st.image(f"https://img.icons8.com/neon/96/{icon}.png", width=22)
             with y2: st.link_button(name, url, use_container_width=True)
         st.divider()
-        with st.expander("🔐 ADMIN", expanded=False):
+        
+        # 🚨 [인증 상태 로직] session_state를 사용하여 인증 유지
+        with st.expander("🔐 ADMIN", expanded=st.session_state.authenticated):
             admin_pw = st.text_input("PASSWORD", type="password")
-            is_admin = (admin_pw == "rkdhkdthfdl12") 
+            if admin_pw == "1234":
+                st.session_state.authenticated = True
+                st.success("인증되었습니다.")
+            elif admin_pw != "":
+                st.error("비밀번호가 틀립니다.")
+            
+            if st.session_state.authenticated:
+                if st.button("로그아웃"):
+                    st.session_state.authenticated = False
+                    st.rerun()
 
-    st.title("🛡️ Chosun Swordsman Classic")
+    st.title("🛡️ COMMAND CENTER")
     tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
 
-    # 표 출력용 HTML 변환 함수 (좌측 정렬 강제)
     def display_custom_table(dataframe, columns_to_show, column_names):
         df_display = dataframe[columns_to_show].copy()
         df_display.columns = column_names
@@ -179,13 +190,7 @@ if isinstance(df, pd.DataFrame):
         st.divider()
         boss_vis = add_medal_logic(df.sort_values(by="누계_v", ascending=False))
         for col in ['14시', '18시', '22시']: boss_vis[col] = boss_vis[col].apply(lambda x: "✅" if str(x).strip().lower() in ['o', 'ㅇ', 'v'] else "──")
-        
-        # [수정] 누계 컬럼을 14시 왼쪽으로 배치
-        display_custom_table(
-            boss_vis, 
-            ['순위', '문파', '이름', '누계_v', '14시', '18시', '22시'], 
-            ['순위', '문파', '이름', '누계', '14시', '18시', '22시']
-        )
+        display_custom_table(boss_vis, ['순위', '문파', '이름', '누계_v', '14시', '18시', '22시'], ['순위', '문파', '이름', '누계', '14시', '18시', '22시'])
 
     with tabs[1]: # 🛡️ 투력 현황
         cp_rank = add_medal_logic(df.sort_values(by="전투력_v", ascending=False))
@@ -212,7 +217,7 @@ if isinstance(df, pd.DataFrame):
                     b1, b2 = st.columns(2)
                     if not is_sold and b1.button(f"🤝 거래완료", key=f"d_{idx}"):
                         market_worksheet.update_cell(idx + 2, 4, "판매완료"); st.cache_data.clear(); st.rerun()
-                    if is_admin and b2.button(f"🗑️ 매물삭제", key=f"x_{idx}"):
+                    if st.session_state.authenticated and b2.button(f"🗑️ 매물삭제", key=f"x_{idx}"):
                         market_worksheet.delete_rows(idx + 2); st.cache_data.clear(); st.rerun()
 
     with tabs[5]: # 📊 분석 통계
@@ -228,20 +233,20 @@ if isinstance(df, pd.DataFrame):
         m1, m2, m3 = st.columns(3)
         m1.metric("총 분배금", f"{income:,}"); m2.metric("정산 완료", f"{paid:,}"); m3.metric("남은 금액", f"{income-paid:,}")
         money_rank = add_medal_logic(df[df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
-        money_rank['분배금'] = money_rank['분배금_v'].apply(lambda x: f"{x:,}")
-        
-        # [복구] 상태 이모티콘
+        money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,}")
         money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
         
-        if is_admin:
-            edited = st.data_editor(money_rank[['순위', '이름', '분배금', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금"], hide_index=True, use_container_width=True)
-            if st.button("💾 상태 저장"):
+        # 🚨 [중요] 세션 인증 상태를 확인하여 데이터 에디터 노출
+        if st.session_state.authenticated:
+            st.info("🔓 관리자 모드 활성화 - 정산 상태를 수정할 수 있습니다.")
+            edited = st.data_editor(money_rank[['순위', '이름', '분배금_표시', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True)
+            if st.button("💾 정산 상태 저장"):
                 idx = sheet_header.index("정산상태") + 1
                 for _, row in edited.iterrows():
                     cell = worksheet.find(row['이름']); worksheet.update_cell(cell.row, idx, row['정산상태'])
-                st.cache_data.clear(); st.rerun()
+                st.cache_data.clear(); st.success("저장되었습니다!"); st.rerun()
         else:
-            display_custom_table(money_rank, ['순위', '문파', '이름', '분배금', '상태'], ['순위', '문파', '이름', '분배금', '상태'])
+            display_custom_table(money_rank, ['순위', '문파', '이름', '분배금_표시', '상태'], ['순위', '문파', '이름', '분배금', '상태'])
 
     with tabs[3]: # 🏆 직업별 랭킹
         job_list = sorted(df['직업'].unique())
@@ -251,6 +256,3 @@ if isinstance(df, pd.DataFrame):
         display_custom_table(job_rank, ['순위', '문파', '이름', '전투력', '성장'], ['순위', '문파', '이름', '전투력', '성장'])
 
 else: st.error("데이터 로드 실패")
-
-
-
