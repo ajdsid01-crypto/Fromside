@@ -151,7 +151,7 @@ if isinstance(df, pd.DataFrame):
         
         with st.expander("🔐 ADMIN", expanded=st.session_state.authenticated):
             admin_pw = st.text_input("PASSWORD", type="password", key="admin_input")
-            if admin_pw == "1234":
+            if admin_pw == "rkdhkdthfdl12":
                 st.session_state.authenticated = True
                 st.success("인증되었습니다.")
             elif admin_pw != "":
@@ -342,3 +342,4 @@ if isinstance(df, pd.DataFrame):
         with g2: st.plotly_chart(px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포"), use_container_width=True)
 
 else: st.error("데이터 로드 실패")
+
