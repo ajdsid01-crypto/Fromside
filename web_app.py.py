@@ -6,14 +6,21 @@ import re
 import plotly.express as px
 import streamlit.components.v1 as components
 
-# 1. 🎨 [디자인] NVIDIA 프리미엄 다크 테마 설정
+# 1. 🎨 [디자인] NVIDIA 프리미엄 다크 테마 및 컴팩트 레이아웃 설정
 st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="wide")
 
 st.markdown("""
     <style>
+    /* 전체 배경 및 텍스트 고정 */
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
     h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; text-align: left !important; }
     
+    /* 🚨 사이드바 여백 극소화 (스크롤 방지) */
+    [data-testid="stSidebar"] > div:first-child { padding-top: 10px !important; }
+    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.3rem !important; }
+    .stDivider { margin: 0.4rem 0 !important; }
+    
+    /* 표(DataFrame) 스타일 강제 고정 */
     [data-testid="stDataFrame"] { background-color: #111111 !important; }
     div[data-testid="stDataFrame"] div[data-baseweb="table"] div {
         background-color: #111111 !important;
@@ -25,20 +32,21 @@ st.markdown("""
     .mvp-bar {
         background: linear-gradient(90deg, #111, #1a1a1a);
         border: 1px solid #76B900;
-        padding: 10px 20px;
+        padding: 8px 15px;
         border-radius: 8px;
         text-align: center;
-        margin-bottom: 20px;
+        margin-bottom: 15px;
         box-shadow: 0 0 10px rgba(118, 185, 0, 0.2);
     }
     
+    /* 참여자 명단 박스 */
     .participant-box {
         background-color: #111;
         border-left: 4px solid #76B900;
-        padding: 10px;
+        padding: 8px;
         border-radius: 5px;
-        margin-bottom: 10px;
-        min-height: 80px;
+        margin-bottom: 8px;
+        min-height: 60px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -55,7 +63,7 @@ def add_medal_logic(df):
     df['순위'] = df['Rank'].apply(medal_icon)
     return df.drop(columns=['Rank'])
 
-# 📂 2. 데이터 로드 및 정밀 전처리
+# 📂 2. 데이터 로드 및 전처리
 @st.cache_data(ttl=10)
 def load_all_guild_data():
     try:
@@ -71,7 +79,6 @@ def load_all_guild_data():
         df = pd.DataFrame(rows, columns=header)
         df = df[df['이름'].str.strip() != ""].copy()
         
-        # 숫자 추출 함수
         def to_int(val):
             clean = re.sub(r'[^0-9]', '', str(val))
             return int(clean) if clean else 0
@@ -91,9 +98,7 @@ def load_all_guild_data():
         df['성장_v'] = [x[0] for x in growth_parsed]
         df['성장_표시'] = [f"{x[0]}% ({x[1]})" for x in growth_parsed]
 
-        # 💰 [업데이트] 정산상태 기본값 설정 로직
         if '정산상태' in df.columns:
-            # '정산완료'가 아니면 전부 '미정산'으로 표시
             df['정산상태'] = df['정산상태'].apply(lambda x: "정산완료" if str(x).strip() == "정산완료" else "미정산")
         else:
             df['정산상태'] = "미정산"
@@ -109,31 +114,30 @@ spreadsheet, worksheet, df, sheet_header = load_all_guild_data()
 
 # 📊 3. 화면 구성
 if isinstance(df, pd.DataFrame):
-    # --- 사이드바 영역 ---
+    # --- 사이드바 영역 (여백 최적화) ---
     with st.sidebar:
         st.markdown(f"""
-            <div style="text-align: center; padding: 10px 0 10px 0;">
-                <img src="https://img.icons8.com/neon/150/shield.png" width="85" style="filter: drop-shadow(0 0 8px #76B900);">
-                <div style="margin-top: 10px; display: flex; justify-content: center; gap: 5px;">
-                    <span style="background: #111; border: 1px solid #76B900; color: #76B900; font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: bold;">ALLIANCE</span>
-                    <span style="background: #111; border: 1px solid #76B900; color: #76B900; font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: bold;">ACTIVE</span>
+            <div style="text-align: center; padding: 5px 0 5px 0;">
+                <img src="https://img.icons8.com/neon/150/shield.png" width="70" style="filter: drop-shadow(0 0 5px #76B900);">
+                <div style="margin-top: 5px; display: flex; justify-content: center; gap: 4px;">
+                    <span style="background: #111; border: 1px solid #76B900; color: #76B900; font-size: 9px; padding: 1px 6px; border-radius: 3px; font-weight: bold;">ALLIANCE</span>
+                    <span style="background: #111; border: 1px solid #76B900; color: #76B900; font-size: 9px; padding: 1px 6px; border-radius: 3px; font-weight: bold;">ACTIVE</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
-        # 🕒 줄 간격과 여백을 조정한 실시간 타이머
+        # 🕒 컴팩트 프리미엄 라이브 타이머
         timer_html = """
         <div id="boss-timer-hq" style="
             background: linear-gradient(180deg, #121212 0%, #080808 100%);
             border: 1px solid rgba(118, 185, 0, 0.4);
-            padding: 15px; border-radius: 8px; text-align: center; font-family: sans-serif; line-height: 1.1;
+            padding: 8px; border-radius: 8px; text-align: center; font-family: sans-serif; line-height: 1.0;
         ">
-            <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 5px;">
-                <div style="width: 6px; height: 6px; background: #ff4b4b; border-radius: 50%; animation: blink 1s infinite;"></div>
-                <span id="target-label" style="font-size: 11px; font-weight: bold; color: #888; letter-spacing: 1px;">--:-- BOSS</span>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 2px;">
+                <div style="width: 5px; height: 5px; background: #ff4b4b; border-radius: 50%; animation: blink 1s infinite;"></div>
+                <span id="target-label" style="font-size: 10px; font-weight: bold; color: #888;">--:-- BOSS</span>
             </div>
-            <div id="countdown-val" style="font-size: 36px; font-weight: 900; color: #76B900; font-family: 'Courier New', monospace; margin: 2px 0; text-shadow: 0 0 10px rgba(118, 185, 0, 0.5);">00:00:00</div>
-            <div style="font-size: 9px; color: #444; letter-spacing: 2px; margin-top: 5px;">REMAINING TIME</div>
+            <div id="countdown-val" style="font-size: 30px; font-weight: 900; color: #76B900; font-family: 'Courier New', monospace; text-shadow: 0 0 8px rgba(118, 185, 0, 0.5);">00:00:00</div>
         </div>
         <style> @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } } </style>
         <script>
@@ -156,37 +160,33 @@ if isinstance(df, pd.DataFrame):
         setInterval(updateTimer, 1000); updateTimer();
         </script>
         """
-        components.html(timer_html, height=150)
-        st.divider()
+        components.html(timer_html, height=85)
         
-        st.subheader("📊 연합 실시간 지표")
         c1, c2 = st.columns(2)
         c1.metric("인원", f"{len(df)}명")
         c2.metric("총투력", f"{df['전투력_v'].sum():,}")
         st.divider()
         
-        # 유튜브 방송 센터
         youtube_links = [("가미가미 TV", "https://www.youtube.com/@gamigami706", "youtube-play"),
                          ("왕코 방송국", "https://www.youtube.com/@스트리머왕코", "controller"),
                          ("아이엠솔이", "https://www.youtube.com/@아이엠솔이", "microphone")]
         for name, url, icon in youtube_links:
             sc1, sc2 = st.columns([1, 4])
-            with sc1: st.image(f"https://img.icons8.com/neon/96/{icon}.png", width=30)
+            with sc1: st.image(f"https://img.icons8.com/neon/96/{icon}.png", width=22)
             with sc2: st.link_button(name, url, use_container_width=True)
             
         st.divider()
-        with st.expander("🔐 ADMIN"):
+        with st.expander("🔐 ADMIN", expanded=False):
             admin_pw = st.text_input("PW", type="password")
-            # 🚨 비밀번호 설정 위치 (여기서 "1234"를 원하는 비번으로 바꾸세요)
+            # 🚨 비밀번호 수정 위치
             is_admin = (admin_pw == "1234") 
             if st.button("RELOAD"):
                 st.cache_data.clear()
                 st.rerun()
 
     # --- 메인 영역 ---
-    st.title("🛡️ Chosun Swordsman Classic")
+    st.title("🛡️ COMMAND CENTER")
     
-    # 🔍 검색창
     search_q = st.text_input("🔍 연합원 검색", placeholder="닉네임 입력")
     if search_q:
         search_res = df[df['이름'].str.contains(search_q, na=False, case=False)].copy()
@@ -251,12 +251,7 @@ if isinstance(df, pd.DataFrame):
         money_rank = add_medal_logic(df[df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
         money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,} 다이아")
         if is_admin:
-            # 관리자 전용 수정 표
-            edited_df = st.data_editor(
-                money_rank[['순위', '이름', '분배금_표시', '정산상태']], 
-                column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, 
-                disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True
-            )
+            edited_df = st.data_editor(money_rank[['순위', '이름', '분배금_표시', '정산상태']], column_config={"정산상태": st.column_config.SelectboxColumn("상태", options=["미정산", "정산완료"])}, disabled=["순위", "이름", "분배금_표시"], hide_index=True, use_container_width=True)
             if st.button("💾 정산 결과 저장"):
                 status_idx = sheet_header.index("정산상태") + 1
                 for _, row in edited_df.iterrows():
@@ -265,14 +260,11 @@ if isinstance(df, pd.DataFrame):
                 st.cache_data.clear()
                 st.rerun()
         else:
-            # 일반 유저용 표시 표
             money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
             st.dataframe(money_rank[['순위', '문파', '이름', '분배금_표시', '상태']], use_container_width=True, hide_index=True)
 
 else:
     st.error("데이터 로드 실패")
-
-
 
 
 
