@@ -96,7 +96,6 @@ def load_all_guild_data():
         df['성장_v'], df['성장'] = zip(*df['성장'].apply(parse_growth))
         df['정산상태'] = df['정산상태'].apply(lambda x: "정산완료" if str(x).strip() == "정산완료" else "미정산") if '정산상태' in df.columns else "미정산"
         
-        # 보탐 체크 여부
         for col in ['14시', '18시', '22시']:
             df[f'{col}_p'] = df[col].apply(lambda x: str(x).strip().lower() in ['o', 'ㅇ', 'v'])
         
@@ -110,9 +109,9 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if isinstance(df, pd.DataFrame):
+    # 사이드바 생략 (동일함)
     with st.sidebar:
         st.markdown("<div style='text-align:center; padding-bottom:10px;'><img src='https://img.icons8.com/neon/150/shield.png' width='75'></div>", unsafe_allow_html=True)
-        
         timer_html = """
         <div style="background:linear-gradient(135deg,#151515,#0a0a0a); border:1px solid #76B90066; padding:15px; border-radius:10px; text-align:center;">
             <div style="font-size:11px; color:#888; font-weight:bold; margin-bottom:5px;">NEXT BOSS RADAR</div>
@@ -131,7 +130,6 @@ if isinstance(df, pd.DataFrame):
         </script>
         """
         components.html(timer_html, height=120)
-        
         if st.button("🔄 최신 데이터 불러오기", use_container_width=True):
             st.cache_data.clear(); st.rerun()
         st.divider()
@@ -145,7 +143,6 @@ if isinstance(df, pd.DataFrame):
             with y1: st.image(f"https://img.icons8.com/neon/96/{icon}.png", width=22)
             with y2: st.link_button(name, url, use_container_width=True)
         st.divider()
-        
         with st.expander("🔐 ADMIN", expanded=st.session_state.authenticated):
             admin_pw = st.text_input("PASSWORD", type="password", key="admin_input")
             if admin_pw == "rkdhkdthfdl12":
@@ -160,13 +157,11 @@ if isinstance(df, pd.DataFrame):
 
     st.title("🛡️ COMMAND CENTER")
 
-    search_query = st.text_input("🔍 길드원 닉네임으로 검색", placeholder="검색어를 입력하면 프로필 요약과 함께 아래 표가 필터링됩니다.")
+    search_query = st.text_input("🔍 길드원 닉네임으로 검색", placeholder="검색어를 입력하면 아래 표가 필터링됩니다.")
     if search_query:
         filtered_df = df[df['이름'].str.contains(search_query, case=False, na=False)]
     else:
         filtered_df = df.copy()
-
-    # 프로필 카드 생략...
 
     tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
 
@@ -184,94 +179,52 @@ if isinstance(df, pd.DataFrame):
         st.markdown(html, unsafe_allow_html=True)
 
     with tabs[0]: # ⚔️ 보탐 현황
-        max_val = df['누계_v'].max()
-        if max_val > 0:
-            mvps = df[df['누계_v'] == max_val]['이름'].tolist()
-            st.markdown(f"<div class='mvp-bar'><span style='color:#76B900; font-weight:bold;'>🏆 MVP : </span>{', '.join(mvps)}</div>", unsafe_allow_html=True)
-        
-        p_cols = st.columns(3)
-        for i, (t_name, p_col) in enumerate([("14시", "14시_p"), ("18시", "18시_p"), ("22시", "22시_p")]):
-            with p_cols[i]:
-                names = df[df[p_col]]['이름'].tolist()
-                st.markdown(f"#### 🕒 {t_name}")
-                st.markdown(f"<div class='participant-box'>{', '.join(names) if names else '──'}</div>", unsafe_allow_html=True)
-        
-        st.divider()
         boss_vis = add_medal_logic(filtered_df.sort_values(by="누계_v", ascending=False))
         for col in ['14시', '18시', '22시']: boss_vis[col] = boss_vis[col].apply(lambda x: "✅" if str(x).strip().lower() in ['o', 'ㅇ', 'v'] else "──")
         display_custom_table(boss_vis, ['순위', '문파', '이름', '누계_v', '14시', '18시', '22시'], ['순위', '문파', '이름', '누계', '14시', '18시', '22시'])
 
-        # 🚨 [신규] 관리자 전용 누계 초기화 로직
+        # 🚨 [중요] 관리자 전용 초기화 센터
         if st.session_state.authenticated:
             st.markdown("<br>", unsafe_allow_html=True)
-            st.error("⚠️ **관리자 전용 : 보탐 누계 초기화**")
+            st.error("⚠️ **관리자 전용 : 주간 데이터 초기화 센터**")
             
-            reset_c1, reset_c2 = st.columns([3, 1])
-            with reset_c1:
-                st.info("새로운 주간/월간 보탐 기록을 위해 모든 인원의 '누계' 점수를 0으로 일괄 초기화합니다.")
-                confirm_reset = st.checkbox("위 내용을 확인했으며, 전체 초기화를 진행합니다.", key="reset_check")
-                
-            with reset_c2:
-                if st.button("🔄 누계 0으로 초기화", disabled=not confirm_reset, use_container_width=True):
-                    with st.spinner("데이터 초기화 중..."):
+            init_c1, init_c2 = st.columns(2)
+            
+            with init_c1:
+                st.info("**1. 보탐 누계 초기화**\n\n모든 인원의 보탐 참여 횟수를 0으로 만듭니다.")
+                confirm_reset_boss = st.checkbox("보탐 초기화 확인", key="reset_boss_check")
+                if st.button("🔄 보탐 누계 0으로 초기화", disabled=not confirm_reset_boss, use_container_width=True):
+                    with st.spinner("초기화 중..."):
+                        col_idx = sheet_header.index('누계') + 1
+                        cell_list = worksheet.range(8, col_idx, 7 + len(df), col_idx)
+                        for cell in cell_list: cell.value = '0'
+                        worksheet.update_cells(cell_list)
+                        st.cache_data.clear(); st.success("보탐 누계가 초기화되었습니다."); st.rerun()
+
+            with init_c2:
+                st.info("**2. 정산 데이터 초기화**\n\n모든 인원의 분배금을 0으로, 상태를 미정산으로 만듭니다.")
+                confirm_reset_money = st.checkbox("정산 초기화 확인", key="reset_money_check")
+                if st.button("💰 정산 데이터 초기화", disabled=not confirm_reset_money, use_container_width=True):
+                    with st.spinner("초기화 중..."):
+                        # 분배금 컬럼과 정산상태 컬럼 초기화
                         try:
-                            # 1. '누계' 컬럼의 위치를 찾음
-                            col_idx = sheet_header.index('누계') + 1
-                            # 2. 데이터가 시작되는 행(8행)부터 마지막 행까지의 범위 설정
-                            start_row = 8
-                            end_row = 7 + len(df)
+                            m_idx = sheet_header.index('분배금') + 1
+                            s_idx = sheet_header.index('정산상태') + 1
+                            # 분배금 0으로
+                            m_cells = worksheet.range(8, m_idx, 7 + len(df), m_idx)
+                            for c in m_cells: c.value = '0'
+                            worksheet.update_cells(m_cells)
+                            # 정산상태 미정산으로
+                            s_cells = worksheet.range(8, s_idx, 7 + len(df), s_idx)
+                            for c in s_cells: c.value = '미정산'
+                            worksheet.update_cells(s_cells)
                             
-                            # 3. 해당 범위의 셀들을 가져와서 값을 0으로 설정
-                            cell_list = worksheet.range(start_row, col_idx, end_row, col_idx)
-                            for cell in cell_list:
-                                cell.value = '0'
-                            
-                            # 4. 일괄 업데이트 (네트워크 통신 최소화)
-                            worksheet.update_cells(cell_list)
-                            st.cache_data.clear()
-                            st.success("✅ 모든 인원의 누계가 성공적으로 초기화되었습니다.")
-                            st.rerun()
+                            st.cache_data.clear(); st.success("정산 데이터가 초기화되었습니다."); st.rerun()
                         except Exception as e:
-                            st.error(f"초기화 중 오류가 발생했습니다: {e}")
+                            st.error(f"정산 초기화 중 오류: {e}")
 
-    # 이후 나머지 탭(투력, 성장, 거래소, 분석, 정산) 로직은 기존 코드와 동일하게 유지
-    with tabs[1]: # 🛡️ 투력 현황
-        cp_rank = add_medal_logic(filtered_df.sort_values(by="전투력_v", ascending=False))
-        cp_rank['전투력'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
-        display_custom_table(cp_rank, ['순위', '문파', '이름', '직업', '전투력', '성장'], ['순위', '문파', '이름', '직업', '전투력', '성장'])
-    
-    with tabs[2]: # 🔥 성장 랭킹
-        growth_rank = add_medal_logic(filtered_df.sort_values(by="성장_v", ascending=False))
-        growth_rank['전투력'] = growth_rank['전투력_v'].apply(lambda x: f"{x:,}")
-        display_custom_table(growth_rank, ['순위', '문파', '이름', '성장', '전투력'], ['순위', '문파', '이름', '성장', '전투력'])
-
-    with tabs[4]: # 🛍️ 문파 거래소
-        m1, m2 = st.columns([1, 2])
-        with m1:
-            with st.form("market_form", clear_on_submit=True):
-                ms, mi, mp = st.text_input("판매자"), st.text_input("아이템"), st.text_input("가격")
-                if st.form_submit_button("등록"):
-                    if market_worksheet: market_worksheet.append_row([ms, mi, mp, "판매중"]); st.cache_data.clear(); st.rerun()
-        with m2:
-            display_market = market_df[market_df['판매자'].str.contains(search_query, case=False, na=False)] if search_query else market_df
-            if not display_market.empty:
-                for idx, row in display_market.iterrows():
-                    is_sold = "판매완료" in row['상태']
-                    st.markdown(f'<div class="market-card {"sold-out-card" if is_sold else ""}"><div class="item-info"><div class="item-name">{row["아이템이름"]}</div><div class="item-price">{row["가격"]}</div><div class="item-seller">판매자 : {row["판매자"]}</div></div><div class="status-area"><div class="status-tag">{"판매완료" if is_sold else "판매중"}</div></div></div>', unsafe_allow_html=True)
-                    b1, b2 = st.columns(2)
-                    if not is_sold and b1.button(f"🤝 거래완료", key=f"done_{idx}"):
-                        cell = market_worksheet.find(row["아이템이름"])
-                        market_worksheet.update_cell(cell.row, 4, "판매완료")
-                        st.cache_data.clear(); st.rerun()
-                    if st.session_state.authenticated and b2.button(f"🗑️ 매물삭제", key=f"del_{idx}"):
-                        try:
-                            cell = market_worksheet.find(row["아이템이름"])
-                            market_worksheet.delete_rows(cell.row)
-                            st.cache_data.clear(); st.success("삭제되었습니다."); st.rerun()
-                        except:
-                            st.error("삭제 중 오류가 발생했습니다.")
-
-    with tabs[6]: # 💰 정산 현황 (상단 개편 버전 유지)
+    # (이하 탭 생략 - 정산 탭 로직 동일함)
+    with tabs[6]: # 💰 정산 현황
         money_rank = add_medal_logic(filtered_df[filtered_df['전투력_v'] > 1].sort_values(by="분배금_v", ascending=False))
         money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,}")
         
@@ -288,7 +241,7 @@ if isinstance(df, pd.DataFrame):
                 m1, m2, m3 = st.columns(3)
                 m1.metric("총 분배금", f"{income:,}"); m2.metric("정산 완료", f"{paid:,}"); m3.metric("남은 금액", f"{income-paid:,}")
 
-            if st.button("💾 정산 상태 구글 시트에 최종 저장"):
+            if st.button("💾 정산 상태 저장", key="save_money_status"):
                 with st.spinner("저장 중..."):
                     idx = sheet_header.index("정산상태") + 1
                     for _, row in edited.iterrows():
@@ -305,7 +258,15 @@ if isinstance(df, pd.DataFrame):
             money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
             display_custom_table(money_rank, ['순위', '문파', '이름', '분배금_표시', '상태'], ['순위', '문파', '이름', '분배금', '상태'])
 
-    # 나머지 분석 및 직업 랭킹 탭 생략...
+    # (이하 생략...)
+    with tabs[1]: # 🛡️ 투력 현황
+        cp_rank = add_medal_logic(filtered_df.sort_values(by="전투력_v", ascending=False))
+        cp_rank['전투력'] = cp_rank['전투력_v'].apply(lambda x: f"{x:,}")
+        display_custom_table(cp_rank, ['순위', '문파', '이름', '직업', '전투력', '성장'], ['순위', '문파', '이름', '직업', '전투력', '성장'])
+    with tabs[2]: # 🔥 성장 랭킹
+        growth_rank = add_medal_logic(filtered_df.sort_values(by="성장_v", ascending=False))
+        growth_rank['전투력'] = growth_rank['전투력_v'].apply(lambda x: f"{x:,}")
+        display_custom_table(growth_rank, ['순위', '문파', '이름', '성장', '전투력'], ['순위', '문파', '이름', '성장', '전투력'])
     with tabs[3]: # 🏆 직업별 랭킹
         job_list = sorted(df['직업'].unique())
         selected_job = st.selectbox("직업 선택", job_list)
