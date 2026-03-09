@@ -39,6 +39,14 @@ st.markdown("""
     .custom-table td {
         padding: 10px 15px; border-bottom: 1px solid #222; text-align: left; font-size: 0.85rem;
     }
+
+    /* 🛍️ 거래소 카드 디자인 */
+    .market-card {
+        background: #111; border: 1px solid #222; border-left: 5px solid #76B900;
+        padding: 15px; border-radius: 10px; margin-bottom: 8px;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .sold-out-card { background: #0a0a0a; border-left: 5px solid #444; opacity: 0.5; filter: grayscale(80%); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -58,7 +66,6 @@ def add_medal_logic(df):
 def display_top3_fixed(df, val_col, unit=""):
     top3 = df.head(3).reset_index()
     m2, m1, m3 = st.columns([1, 1.2, 1])
-    
     if len(top3) > 0:
         with m1:
             row = top3.iloc[0]
@@ -121,11 +128,31 @@ if isinstance(df, pd.DataFrame):
     
     with st.sidebar:
         st.markdown("<div style='text-align:center; padding-bottom:10px;'><img src='https://img.icons8.com/neon/150/shield.png' width='75'></div>", unsafe_allow_html=True)
+        
+        # 🕒 보스 타이머 추가
+        timer_html = """
+        <div style="background:linear-gradient(135deg,#151515,#0a0a0a); border:1px solid #76B90066; padding:15px; border-radius:10px; text-align:center;">
+            <div style="font-size:11px; color:#888; font-weight:bold; margin-bottom:5px;">NEXT BOSS RADAR</div>
+            <div id="sidebar-timer" style="font-size:32px; font-weight:900; color:#76B900; font-family:monospace;">00:00:00</div>
+        </div>
+        <script>
+        function up(){
+            const n=new Date(new Date().toLocaleString("en-US",{timeZone:"Asia/Seoul"}));
+            const b=[14,18,22];let t=null;
+            for(let h of b){let x=new Date(n);x.setHours(h,0,0,0);if(n<x){t=x;break;}}
+            if(!t){t=new Date(n);t.setDate(n.getDate()+1);t.setHours(14,0,0,0);}
+            const d=t-n;
+            const h=String(Math.floor(d/3600000)).padStart(2,'0'), m=String(Math.floor((d%3600000)/60000)).padStart(2,'0'), s=String(Math.floor((d%60000)/1000)).padStart(2,'0');
+            document.getElementById('sidebar-timer').innerText=h+":"+m+":"+s;
+        }setInterval(up,1000);up();
+        </script>
+        """
+        components.html(timer_html, height=120)
+
         if st.button("🔄 최신 데이터 불러오기", use_container_width=True):
             st.cache_data.clear(); st.rerun()
         st.divider()
 
-        # 🚨 [복구] 스트리머 주소 섹션
         st.subheader("📺 실시간 방송")
         youtube_links = [
             ("가미가미 TV", "https://www.youtube.com/@gamigami706", "youtube-play"),
@@ -165,7 +192,6 @@ if isinstance(df, pd.DataFrame):
 
     with tabs[0]: # ⚔️ 보탐 현황
         st.subheader("🏆 보탐 참여 MVP (Top 3)")
-        # 🚨 [수정] 정렬 기준: 참여 횟수(누계_v) 내림차순 -> 전투력(전투력_v) 내림차순
         boss_sorted = filtered_df.sort_values(by=["누계_v", "전투력_v"], ascending=[False, False])
         display_top3_fixed(boss_sorted, "누계_v", "회")
         st.divider()
@@ -200,6 +226,72 @@ if isinstance(df, pd.DataFrame):
         job_rank['전투력'] = job_rank['전투력_v'].apply(lambda x: f"{x:,}")
         display_custom_table(job_rank, ['순위', '문파', '이름', '전투력', '성장'], ['순위', '문파', '이름', '전투력', '성장'])
 
+    with tabs[4]: # 🛍️ 문파 거래소
+        st.subheader("🛍️ 문파 실시간 매물")
+        m1, m2 = st.columns([1, 2])
+        with m1:
+            st.markdown("##### 📝 매물 등록")
+            with st.form("market_form", clear_on_submit=True):
+                ms = st.text_input("판매자 닉네임")
+                mi = st.text_input("아이템 이름")
+                mp = st.text_input("판매 가격 (예: 1,000)")
+                if st.form_submit_button("등록하기"):
+                    if ms and mi and mp:
+                        market_worksheet.append_row([ms, mi, mp, "판매중"])
+                        st.cache_data.clear(); st.success("등록 완료!"); st.rerun()
+                    else: st.warning("모든 정보를 입력해주세요.")
+        with m2:
+            st.markdown("##### 📦 판매 리스트")
+            # 검색어 필터링 적용
+            display_market = market_df[market_df['아이템이름'].str.contains(search_query, case=False)] if search_query else market_df
+            if not display_market.empty:
+                for idx, row in display_market.iterrows():
+                    is_sold = "판매완료" in row['상태']
+                    status_class = "sold-out-card" if is_sold else ""
+                    st.markdown(f"""
+                    <div class="market-card {status_class}">
+                        <div>
+                            <div style="font-size:18px; font-weight:bold;">{row['아이템이름']}</div>
+                            <div style="color:#76B900; font-weight:bold;">{row['가격']} 다이아</div>
+                            <div style="font-size:12px; color:#888;">판매자: {row['판매자']}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <span style="border:1px solid {'#444' if is_sold else '#76B900'}; color:{'#444' if is_sold else '#76B900'}; padding:2px 8px; border-radius:5px; font-size:12px;">{row['상태']}</span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    if st.session_state.authenticated:
+                        b1, b2 = st.columns(2)
+                        if not is_sold and b1.button(f"🤝 완료", key=f"done_{idx}"):
+                            cell = market_worksheet.find(row['아이템이름'])
+                            market_worksheet.update_cell(cell.row, 4, "판매완료")
+                            st.cache_data.clear(); st.rerun()
+                        if b2.button(f"🗑️ 삭제", key=f"del_{idx}"):
+                            cell = market_worksheet.find(row['아이템이름'])
+                            market_worksheet.delete_rows(cell.row)
+                            st.cache_data.clear(); st.rerun()
+            else: st.write("등록된 매물이 없습니다.")
+
+    with tabs[5]: # 📊 분석 통계
+        st.subheader("📊 연합 실시간 분석")
+        sc1, sc2, sc3 = st.columns(3)
+        sc1.metric("통합 전투력", f"{df['전투력_v'].sum():,}")
+        sc2.metric("평균 전투력", f"{int(df['전투력_v'].mean()):,}")
+        sc3.metric("평균 성장률", f"{df['성장_v'].mean():.2f}%")
+        
+        g1, g2 = st.columns(2)
+        with g1:
+            st.plotly_chart(px.pie(df, names='문파', values='전투력_v', hole=0.6, title="문파별 전투력 비중", color_discrete_sequence=px.colors.sequential.Greens_r), use_container_width=True)
+        with g2:
+            st.plotly_chart(px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포", color='직업', color_discrete_sequence=px.colors.qualitative.Prism), use_container_width=True)
+        
+        st.markdown("##### ⚔️ 전투력 구간별 인원 분포")
+        bins = [0, 100000, 130000, 150000, 170000, 190000, 250000]
+        labels = ['10만 이하', '10~13만', '13~15만', '15~17만', '17~19만', '19만 이상']
+        df['구간'] = pd.cut(df['전투력_v'], bins=bins, labels=labels)
+        st.plotly_chart(px.bar(df['구간'].value_counts().reindex(labels).reset_index(), x='구간', y='count', color='구간', color_discrete_sequence=['#76B900']), use_container_width=True)
+
     with tabs[6]: # 💰 정산 현황
         st.subheader("💰 최다 분배금 대상자 (Top 3)")
         money_df = filtered_df[filtered_df['전투력_v'] > 1].sort_values(by=["분배금_v", "전투력_v"], ascending=[False, False])
@@ -207,7 +299,7 @@ if isinstance(df, pd.DataFrame):
         st.divider()
         money_rank = add_medal_logic(money_df)
         money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,}")
-        display_custom_table(money_rank, ['순위', '문파', '이름', '분배금_표시', '정산상태'], ['순위', '문파', '이름', '분배금', '상태'])
+        money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
+        display_custom_table(money_rank, ['순위', '문파', '이름', '분배금_표시', '상태'], ['순위', '문파', '이름', '분배금', '상태'])
 
-    # 거래소 및 분석 탭 생략(동일)
 else: st.error("데이터 로드 실패")
