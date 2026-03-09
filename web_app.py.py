@@ -165,7 +165,7 @@ if isinstance(df, pd.DataFrame):
                 c1, c2, c3, c4, c5 = st.columns(5)
                 with c1: st.markdown(f"<div class='search-card'><div class='card-label'>닉네임</div><div class='card-value'>{row['이름']}</div></div>", unsafe_allow_html=True)
                 with c2: st.markdown(f"<div class='search-card'><div class='card-label'>직업</div><div class='card-value'>{row['직업']}</div></div>", unsafe_allow_html=True)
-                with c3: st.markdown(f"<div class='search-card'><div class='card-label'>전전투력</div><div class='card-value'>{row['전투력_v']:,}</div></div>", unsafe_allow_html=True)
+                with c3: st.markdown(f"<div class='search-card'><div class='card-label'>전투력</div><div class='card-value'>{row['전투력_v']:,}</div></div>", unsafe_allow_html=True)
                 with c4: st.markdown(f"<div class='search-card'><div class='card-label'>문파</div><div class='card-value'>{row['문파']}</div></div>", unsafe_allow_html=True)
                 with c5: st.markdown(f"<div class='search-card'><div class='card-label'>성장률</div><div class='card-value'>{row['성장']}</div></div>", unsafe_allow_html=True)
         else: st.warning(f"'{search_query}' 닉네임을 찾을 수 없습니다.")
@@ -247,3 +247,4 @@ if isinstance(df, pd.DataFrame):
         display_custom_table(money_rank, ['순위', '문파', '이름', '분배금_표시', '상태'], ['순위', '문파', '이름', '분배금', '상태'])
 
 else: st.error("데이터 로드 실패")
+
