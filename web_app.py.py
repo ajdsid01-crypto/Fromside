@@ -182,7 +182,7 @@ if isinstance(df, pd.DataFrame):
         display_custom_table(boss_vis, ['순위', '문파', '이름', '누계_v', '14시', '18시', '22시'], ['순위', '문파', '이름', '누계', '14시', '18시', '22시'])
 
     with tabs[1]: # 🛡️ 투력 현황
-        st.subheader("👑 연합 전투력 서열 (Top 3)")
+        st.subheader("👑 전투력 순위 (Top 3)")
         display_top3_fixed(df.sort_values(by="전투력_v", ascending=False), "전투력_v")
         st.divider()
         st.markdown("##### 📜 전체 전투력 순위")
@@ -247,4 +247,5 @@ if isinstance(df, pd.DataFrame):
         display_custom_table(money_rank, ['순위', '문파', '이름', '분배금_표시', '상태'], ['순위', '문파', '이름', '분배금', '상태'])
 
 else: st.error("데이터 로드 실패")
+
 
