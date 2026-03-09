@@ -142,7 +142,7 @@ if isinstance(df, pd.DataFrame):
         if st.button("🔄 최신 데이터 불러오기", use_container_width=True): st.cache_data.clear(); st.rerun()
         st.divider()
         st.subheader("📺 실시간 방송")
-        youtube_links = [("가미가미 TV", "https://www.youtube.com/@gamigami706", "youtube-play"), ("왕코 방송국", "https://www.youtube.com/@스트리머왕코", "controller"), ("아이엠솔이", "https://www.youtube.com/@아이엠솔이", "microphone")]
+        youtube_links = [("가미가미", "https://www.youtube.com/@gamigami706", "youtube-play"), ("스트리머왕코", "https://www.youtube.com/@스트리머왕코", "controller"), ("아이엠솔이", "https://www.youtube.com/@아이엠솔이", "microphone")]
         for name, url, icon in youtube_links:
             y1, y2 = st.columns([1, 4])
             with y1: st.image(f"https://img.icons8.com/neon/96/{icon}.png", width=22)
@@ -247,3 +247,4 @@ if isinstance(df, pd.DataFrame):
         display_custom_table(money_rank, ['순위', '문파', '이름', '분배금_표시', '상태'], ['순위', '문파', '이름', '분배금', '상태'])
 
 else: st.error("데이터 로드 실패")
+
