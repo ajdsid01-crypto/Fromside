@@ -6,6 +6,8 @@ import re
 import plotly.express as px
 import streamlit.components.v1 as components
 from datetime import datetime
+import random
+import string
 
 # 1. 🎨 [디자인] NVIDIA 프리미엄 다크 테마 및 스타일 설정
 st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="wide")
@@ -15,7 +17,6 @@ st.markdown("""
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
     h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; }
     
-    /* 🏆 메달 및 검색 카드 디자인 */
     .medal-box, .search-card {
         background: rgba(118, 185, 0, 0.08);
         border: 1px solid rgba(118, 185, 0, 0.3);
@@ -91,6 +92,10 @@ def load_all_guild_data():
         df = pd.DataFrame(rows, columns=header)
         df = df[df['이름'].str.strip() != ""].copy()
         
+        # 비밀번호 열 체크 및 생성
+        if '비밀번호' not in df.columns:
+            df['비밀번호'] = ""
+
         market_sheet = spreadsheet.worksheet("거래소")
         m_values = market_sheet.get_all_values()
         market_df = pd.DataFrame(m_values[1:], columns=["판매자", "아이템이름", "가격", "상태"]) if len(m_values) > 1 else pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
@@ -148,14 +153,37 @@ if isinstance(df, pd.DataFrame):
             with y1: st.image(f"https://img.icons8.com/neon/96/{icon}.png", width=22)
             with y2: st.link_button(name, url, use_container_width=True)
         st.divider()
+        
+        # --- ADMIN 섹션 (비밀번호 관리 기능 통합) ---
         with st.expander("🔐 ADMIN", expanded=st.session_state.authenticated):
             admin_pw = st.text_input("PASSWORD", type="password", key="admin_pw_main")
-            if admin_pw == "rkdhkdthfdl12": st.session_state.authenticated = True
+            if admin_pw == "rkdhkdthfdl12": 
+                st.session_state.authenticated = True
+                st.success("운영진 인증됨")
+                
+                st.markdown("---")
+                st.write("🔧 **비밀번호 관리**")
+                if st.button("🎲 미설정 인원 비번 일괄 생성", use_container_width=True):
+                    try:
+                        pw_col_idx = sheet_header.index('비밀번호') + 1
+                        updated_count = 0
+                        for i, row in df.iterrows():
+                            if not str(row['비밀번호']).strip():
+                                new_pw = ''.join(random.choices(string.digits, k=4))
+                                worksheet.update_cell(i + 8, pw_col_idx, new_pw)
+                                updated_count += 1
+                        st.sidebar.success(f"{updated_count}명 생성 완료!")
+                        st.cache_data.clear(); st.rerun()
+                    except: st.error("시트에 '비밀번호' 열이 없습니다.")
+                
+                if st.checkbox("🔑 비밀번호 명단 보기"):
+                    st.dataframe(df[['이름', '비밀번호']], hide_index=True)
+
             if st.session_state.authenticated and st.button("로그아웃"): st.session_state.authenticated = False; st.rerun()
 
     st.title("🛡️ COMMAND CENTER")
     
-    # 🔍 검색 섹션 (프로필 카드 표시)
+    # 🔍 검색 섹션
     search_query = st.text_input("🔍 길드원 상세 검색", placeholder="닉네임을 입력하여 프로필 카드를 확인하세요.")
     if search_query:
         search_result = df[df['이름'].str.contains(search_query, case=False, na=False)]
@@ -170,9 +198,8 @@ if isinstance(df, pd.DataFrame):
                 with c5: st.markdown(f"<div class='search-card'><div class='card-label'>성장률</div><div class='card-value'>{row['성장']}</div></div>", unsafe_allow_html=True)
         else: st.warning(f"'{search_query}' 닉네임을 찾을 수 없습니다.")
 
-    tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황"])
+    tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황", "📝 투력 갱신"])
 
-    # 각 탭에서 하단 리스트는 항상 '전체 명단'을 유지하도록 구성
     with tabs[0]: # ⚔️ 보탐 현황
         st.subheader("🏆 보탐 참여 MVP (Top 3)")
         boss_sorted = df.sort_values(by=["누계_v", "전투력_v"], ascending=[False, False])
@@ -226,7 +253,10 @@ if isinstance(df, pd.DataFrame):
                 st.markdown(f"<div class='market-card'><div><b>{row['아이템이름']}</b><br><small>{row['가격']} 다이아 / 판매자: {row['판매자']}</small></div><div>{row['상태']}</div></div>", unsafe_allow_html=True)
                 if st.session_state.authenticated:
                     if st.button(f"🤝 완료", key=f"d_{idx}"):
-                        market_worksheet.update_cell(market_worksheet.find(row['아이템이름']).row, 4, "판매완료"); st.cache_data.clear(); st.rerun()
+                        try:
+                            cell = market_worksheet.find(row['아이템이름'])
+                            market_worksheet.update_cell(cell.row, 4, "판매완료"); st.cache_data.clear(); st.rerun()
+                        except: st.error("삭제 실패")
 
     with tabs[5]: # 📊 분석 통계
         st.subheader("📊 연합 실시간 분석")
@@ -246,5 +276,42 @@ if isinstance(df, pd.DataFrame):
         money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,}")
         money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
         display_custom_table(money_rank, ['순위', '문파', '이름', '분배금_표시', '상태'], ['순위', '문파', '이름', '분배금', '상태'])
+
+    with tabs[7]: # 📝 투력 갱신 (새로 추가됨)
+        st.subheader("📝 내 전투력 직접 갱신")
+        st.info("💡 닉네임을 선택하고 부여받은 개인 비밀번호를 입력하여 직접 전투력을 업데이트하세요.")
+        
+        with st.form("user_update_form"):
+            u_col1, u_col2 = st.columns(2)
+            with u_col1:
+                target_user = st.selectbox("본인 닉네임 선택", ["선택하세요"] + list(df['이름'].unique()))
+            with u_col2:
+                user_pwd = st.text_input("개인 비밀번호", type="password", help="운영진에게 부여받은 4자리 숫자를 입력하세요.")
+            
+            new_cp_val = st.number_input("갱신할 전투력 (숫자만 입력)", min_value=0, step=100)
+            
+            submit_btn = st.form_submit_button("전투력 즉시 갱신", use_container_width=True)
+            
+            if submit_btn:
+                if target_user == "선택하세요":
+                    st.warning("닉네임을 먼저 선택해 주세요.")
+                else:
+                    user_data = df[df['이름'] == target_user].iloc[0]
+                    correct_pw = str(user_data['비밀번호']).strip()
+                    
+                    if user_pwd.strip() == correct_pw and correct_pw != "":
+                        try:
+                            # 시트 내 정확한 행(Row)과 열(Column) 계산
+                            row_to_update = df[df['이름'] == target_user].index[0] + 8
+                            cp_col_to_update = sheet_header.index('전투력') + 1
+                            
+                            worksheet.update_cell(row_to_update, cp_col_to_update, f"{new_cp_val:,}")
+                            st.success(f"🎉 {target_user}님! 전투력이 {new_cp_val:,}로 성공적으로 갱신되었습니다.")
+                            st.cache_data.clear()
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"시트 업데이트 중 오류가 발생했습니다: {e}")
+                    else:
+                        st.error("❌ 비밀번호가 틀렸거나 아직 설정되지 않았습니다. 운영진에게 확인하세요.")
 
 else: st.error("데이터 로드 실패")
