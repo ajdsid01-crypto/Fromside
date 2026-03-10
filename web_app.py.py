@@ -170,7 +170,7 @@ if df is not None:
         st.subheader("✨전투력 갱신")
         c1, c2 = st.columns(2)
         with c1:
-            sel_u = st.selectbox("본인 닉네임 선택", ["선택하세요"] + sorted(df['이름'].tolist()))
+            sel_u = st.selectbox("닉네임 선택", ["선택하세요"] + sorted(df['이름'].tolist()))
             new_cp = st.number_input("현재 전투력 입력", min_value=0, step=100)
         with c2:
             my_pw = st.text_input("개인 비밀번호", type="password")
@@ -240,4 +240,5 @@ if df is not None:
             st.dataframe(df[['이름', '비밀번호', '갱신일']], use_container_width=True, hide_index=True)
 
 else: st.error("데이터 로드 실패")
+
 
