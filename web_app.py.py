@@ -278,7 +278,7 @@ if isinstance(df, pd.DataFrame):
         display_custom_table(money_rank, ['순위', '문파', '이름', '분배금_표시', '상태'], ['순위', '문파', '이름', '분배금', '상태'])
 
     with tabs[7]: # 📝 투력 갱신 (새로 추가됨)
-        st.subheader("📝 내 전투력 직접 갱신")
+        st.subheader("📝 내 전투력 갱신")
         st.info("💡 닉네임을 선택하고 부여받은 개인 비밀번호를 입력하여 직접 전투력을 업데이트하세요.")
         
         with st.form("user_update_form"):
@@ -315,3 +315,4 @@ if isinstance(df, pd.DataFrame):
                         st.error("❌ 비밀번호가 틀렸거나 아직 설정되지 않았습니다. 운영진에게 확인하세요.")
 
 else: st.error("데이터 로드 실패")
+
