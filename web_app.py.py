@@ -167,7 +167,7 @@ if df is not None:
 
     # 3. ✨ 투력 갱신 (보안 갱신)
     with tabs[2]:
-        st.subheader("✨ 본인 전투력 직접 갱신")
+        st.subheader("✨전투력 갱신")
         c1, c2 = st.columns(2)
         with c1:
             sel_u = st.selectbox("본인 닉네임 선택", ["선택하세요"] + sorted(df['이름'].tolist()))
@@ -240,3 +240,4 @@ if df is not None:
             st.dataframe(df[['이름', '비밀번호', '갱신일']], use_container_width=True, hide_index=True)
 
 else: st.error("데이터 로드 실패")
+
