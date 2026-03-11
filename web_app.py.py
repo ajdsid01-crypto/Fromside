@@ -10,7 +10,7 @@ import random
 import string
 
 # 1. 🎨 [디자인] NVIDIA 프리미엄 다크 테마 및 전체 스타일 설정
-st.set_page_config(page_title="조협클래식 오늘만산다,살자", layout="wide")
+st.set_page_config(page_title="조협클래식 오늘만산다", layout="wide")
 
 st.markdown("""
     <style>
@@ -328,3 +328,4 @@ if isinstance(df, pd.DataFrame):
                     else: st.error("❌ 비밀번호가 올바르지 않거나 닉네임이 잘못되었습니다.")
 
 else: st.error("데이터 로드 실패: 구글 시트 연결을 확인하세요.")
+
