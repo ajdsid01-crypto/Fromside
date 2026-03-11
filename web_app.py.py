@@ -51,6 +51,12 @@ st.markdown("""
         padding: 15px; border-radius: 10px; margin-bottom: 8px;
         display: flex; justify-content: space-between; align-items: center;
     }
+    
+    /* 💰 정산 리스트 간격 축소 스타일 추가 */
+    .settle-row {
+        border-bottom: 1px solid #222;
+        padding: 5px 0px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -80,7 +86,7 @@ def display_custom_table(dataframe, columns_to_show, column_names):
         html += '<tr>' + "".join([f'<td>{val}</td>' for val in row]) + '</tr>'
     st.markdown(html + '</tbody></table>', unsafe_allow_html=True)
 
-# 📂 데이터 로드 (KeyError 방지 로직 적용)
+# 📂 데이터 로드
 @st.cache_data(ttl=2)
 def load_all_guild_data():
     try:
@@ -92,18 +98,15 @@ def load_all_guild_data():
         sheet = spreadsheet.sheet1
         all_data = sheet.get_all_values()
         
-        # [수정] 헤더의 양끝 공백을 제거하여 KeyError를 근본적으로 방지합니다.
         header = [h.strip() for h in all_data[6]]
         rows = all_data[7:]
         df = pd.DataFrame(rows, columns=header)
         df = df[df['이름'].str.strip() != ""].copy()
         
-        # 거래소 데이터 로드
         market_sheet = spreadsheet.worksheet("거래소")
         m_values = market_sheet.get_all_values()
         market_df = pd.DataFrame(m_values[1:], columns=["판매자", "아이템이름", "가격", "상태"]) if len(m_values) > 1 else pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
 
-        # 숫자 변환 함수
         def to_int(val):
             clean = re.sub(r'[^0-9]', '', str(val))
             return int(clean) if clean else 0
@@ -112,7 +115,6 @@ def load_all_guild_data():
         df['누계_v'] = df['누계'].apply(to_int)
         df['분배금_v'] = df['분배금'].apply(to_int)
         
-        # 성장률 값 추출 (정렬용)
         def parse_growth_val(val):
             percent = re.search(r'([\d\.]+)(?=%)', str(val))
             return float(percent.group(1)) if percent else 0.0
@@ -129,11 +131,8 @@ spreadsheet, worksheet, df, sheet_header, market_worksheet, market_df = load_all
 if isinstance(df, pd.DataFrame):
     if "authenticated" not in st.session_state: st.session_state.authenticated = False
     
-    # --- 사이드바 영역 ---
     with st.sidebar:
         st.markdown("<div style='text-align:center; padding-bottom:10px;'><img src='https://img.icons8.com/neon/150/shield.png' width='75'></div>", unsafe_allow_html=True)
-        
-        # 보탐 레이더 타이머
         timer_html = """
         <div style="background:linear-gradient(135deg,#151515,#0a0a0a); border:1px solid #76B90066; padding:15px; border-radius:10px; text-align:center;">
             <div style="font-size:11px; color:#888; font-weight:bold; margin-bottom:5px;">NEXT BOSS RADAR</div>
@@ -152,20 +151,15 @@ if isinstance(df, pd.DataFrame):
         </script>
         """
         components.html(timer_html, height=120)
-        
         if st.button("🔄 최신 데이터 불러오기", use_container_width=True): st.cache_data.clear(); st.rerun()
         st.divider()
-        
         st.subheader("📺 실시간 방송")
         youtube_links = [("가미가미", "https://www.youtube.com/@gamigami706", "youtube-play"), ("스트리머왕코", "https://www.youtube.com/@스트리머왕코", "controller"), ("아이엠솔이", "https://www.youtube.com/@아이엠솔이", "microphone")]
         for name, url, icon in youtube_links:
             y1, y2 = st.columns([1, 4])
             with y1: st.image(f"https://img.icons8.com/neon/96/{icon}.png", width=22)
             with y2: st.link_button(name, url, use_container_width=True)
-            
         st.divider()
-        
-        # [수정] ADMIN 섹션: 명단 보기 시 열 존재 여부 체크 로직 추가
         with st.expander("🔐 ADMIN", expanded=st.session_state.authenticated):
             admin_pw = st.text_input("PASSWORD", type="password", key="admin_pw_main")
             if admin_pw == "rkdhkdthfdl12": 
@@ -183,7 +177,6 @@ if isinstance(df, pd.DataFrame):
                         st.sidebar.success(f"{update_count}명 생성 완료!")
                         st.cache_data.clear(); st.rerun()
                     except: st.error("시트에 '비밀번호' 열이 없습니다.")
-                
                 if st.checkbox("🔑 비밀번호 명단 보기"):
                     target_cols = ['이름', '비밀번호']
                     if all(col in df.columns for col in target_cols):
@@ -191,13 +184,9 @@ if isinstance(df, pd.DataFrame):
                     else:
                         missing = [col for col in target_cols if col not in df.columns]
                         st.error(f"시트 헤더에서 다음 열을 찾을 수 없습니다: {missing}")
-
             if st.session_state.authenticated and st.button("로그아웃"): st.session_state.authenticated = False; st.rerun()
 
-    # --- 메인 본문 ---
     st.title("🛡️ COMMAND CENTER")
-    
-    # 🔍 검색 섹션
     search_query = st.text_input("🔍 길드원 상세 검색", placeholder="닉네임을 입력하여 프로필 카드를 확인하세요.")
     if search_query:
         search_result = df[df['이름'].str.contains(search_query, case=False, na=False)]
@@ -212,7 +201,6 @@ if isinstance(df, pd.DataFrame):
                 with c5: st.markdown(f"<div class='search-card'><div class='card-label'>성장률</div><div class='card-value'>{row['성장']}</div></div>", unsafe_allow_html=True)
         else: st.warning(f"'{search_query}' 닉네임을 찾을 수 없습니다.")
 
-    # 7개 기본 탭 + 투력 갱신 탭
     tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황", "📝 투력 갱신"])
 
     with tabs[0]: # ⚔️ 보탐 현황
@@ -284,69 +272,67 @@ if isinstance(df, pd.DataFrame):
         with g2: st.plotly_chart(px.bar(df['직업'].value_counts().reset_index(), x='직업', y='count', title="연합 직업 분포"), use_container_width=True)
 
     with tabs[6]: # 💰 정산 현황
-        st.subheader("💰 최다 분배금 대상자 (Top 3)")
+        st.subheader("💰 정산 대상자 리스트")
         money_df = df[df['전투력_v'] > 1].sort_values(by=["분배금_v", "전투력_v"], ascending=[False, False])
-        display_top3_fixed(money_df, "분배금_v", " 다이아")
-        st.divider()
-        st.markdown("##### 📜 전체 정산 현황 명단")
         
-        # 1. 메달 로직 적용 및 정산 처리 인터페이스
+        # 상단 요약 생략 (공간 절약)
+        st.markdown("---")
+        
+        # 정산 리스트 제목행 (간격 최적화)
+        h1, h2, h3, h4 = st.columns([0.5, 2.5, 1.5, 1.5])
+        with h1: st.caption("순위")
+        with h2: st.caption("이름 (문파)")
+        with h3: st.caption("분배금")
+        with h4: st.caption("상태/관리")
+
         money_rank = add_medal_logic(money_df)
         
         for idx, row in money_rank.iterrows():
-            r1, r2, r3, r4 = st.columns([1, 2, 2, 2])
-            with r1: st.write(row['순위'])
-            with r2: st.write(f"**{row['이름']}** ({row['문파']})")
-            with r3: st.write(f"{row['분배금_v']:,} 다이아")
-            with r4:
-                # 상태 및 관리자 버튼
-                if row['정산상태'] == "정산완료":
-                    st.success("✅ 완료")
-                else:
-                    if st.session_state.authenticated:
-                        if st.button("정산하기", key=f"pay_btn_{row['이름']}_{idx}"):
-                            try:
-                                idx_map = {name: i+1 for i, name in enumerate(sheet_header)}
-                                sheet_row_idx = df[df['이름'] == row['이름']].index[0] + 8
-                                worksheet.update_cell(sheet_row_idx, idx_map['정산상태'], "정산완료")
-                                st.toast(f"✅ {row['이름']}님 정산 처리됨")
-                                st.cache_data.clear(); st.rerun()
-                            except: st.error("시트 업데이트 실패")
+            # 공간을 줄이기 위해 컨테이너 또는 얇은 구분선 사용
+            with st.container():
+                r1, r2, r3, r4 = st.columns([0.5, 2.5, 1.5, 1.5])
+                with r1: st.write(row['순위'])
+                with r2: st.write(f"**{row['이름']}** <small>({row['문파']})</small>", unsafe_allow_html=True)
+                with r3: st.write(f"**{row['분배금_v']:,}** <small>D</small>", unsafe_allow_html=True)
+                with r4:
+                    if row['정산상태'] == "정산완료":
+                        st.markdown("<span style='color:#76B900; font-size:12px;'>● 정산완료</span>", unsafe_allow_html=True)
                     else:
-                        st.warning("⏳ 대기")
-            st.divider()
+                        if st.session_state.authenticated:
+                            # 버튼 크기를 작게 유지하기 위해 아이콘 또는 짧은 텍스트 사용
+                            if st.button("정산", key=f"p_{row['이름']}_{idx}", help="클릭 시 정산완료로 변경"):
+                                try:
+                                    idx_map = {name: i+1 for i, name in enumerate(sheet_header)}
+                                    sheet_row_idx = df[df['이름'] == row['이름']].index[0] + 8
+                                    worksheet.update_cell(sheet_row_idx, idx_map['정산상태'], "정산완료")
+                                    st.toast(f"{row['이름']}님 정산 완료!")
+                                    st.cache_data.clear(); st.rerun()
+                                except: st.error("실패")
+                        else:
+                            st.markdown("<span style='color:#888; font-size:12px;'>⏳ 대기</span>", unsafe_allow_html=True)
+            st.markdown("<div style='height:1px; border-bottom:1px solid #222; margin-bottom:10px;'></div>", unsafe_allow_html=True)
 
     with tabs[7]: # 📝 투력 갱신
         st.subheader("📝 내 전투력 직접 갱신")
         st.info("💡 개인 비밀번호를 입력하면 **전투력**과 **성장률**이 즉시 계산되어 반영됩니다.")
-        
         with st.form("user_update_form"):
             u_col1, u_col2 = st.columns(2)
             with u_col1: target_user = st.selectbox("본인 닉네임 선택", ["선택하세요"] + list(df['이름'].unique()))
             with u_col2: user_pwd = st.text_input("개인 비밀번호", type="password")
             new_cp_val = st.number_input("갱신할 현재 전투력 (숫자만)", min_value=0, step=100)
-            
             if st.form_submit_button("전투력 및 성장률 갱신"):
                 if target_user != "선택하세요":
                     user_row = df[df['이름'] == target_user].iloc[0]
                     if str(user_pwd).strip() == str(user_row['비밀번호']).strip() and user_pwd != "":
                         try:
-                            # 1. 인덱스 맵 생성 (열 이름으로 위치 찾기)
                             idx_map = {name: i+1 for i, name in enumerate(sheet_header)}
                             row_idx = df[df['이름'] == target_user].index[0] + 8
-                            
-                            # 2. 성장률 계산 로직
                             old_cp = user_row['전투력_v']
                             diff = new_cp_val - old_cp
                             growth_p = (diff / old_cp * 100) if old_cp > 0 else 0
-                            
-                            # 성장률 표기: 퍼센트 괄호 밖, 수치 괄호 안 (0.00% (+000))
                             growth_str = f"{growth_p:.2f}% ({diff:+,})"
-
-                            # 3. 구글 시트 업데이트
                             worksheet.update_cell(row_idx, idx_map['전투력'], f"{new_cp_val:,}")
                             worksheet.update_cell(row_idx, idx_map['성장'], growth_str)
-                            
                             st.success(f"✅ {target_user}님! {new_cp_val:,}로 업데이트 완료 (성장률: {growth_str})")
                             st.cache_data.clear(); st.rerun()
                         except Exception as e: st.error(f"시트 업데이트 중 오류 발생: {e}")
