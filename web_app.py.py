@@ -289,10 +289,32 @@ if isinstance(df, pd.DataFrame):
         display_top3_fixed(money_df, "분배금_v", " 다이아")
         st.divider()
         st.markdown("##### 📜 전체 정산 현황 명단")
+        
+        # 1. 메달 로직 적용 및 정산 처리 인터페이스
         money_rank = add_medal_logic(money_df)
-        money_rank['분배금_표시'] = money_rank['분배금_v'].apply(lambda x: f"{x:,}")
-        money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
-        display_custom_table(money_rank, ['순위', '문파', '이름', '분배금_표시', '상태'], ['순위', '문파', '이름', '분배금', '상태'])
+        
+        for idx, row in money_rank.iterrows():
+            r1, r2, r3, r4 = st.columns([1, 2, 2, 2])
+            with r1: st.write(row['순위'])
+            with r2: st.write(f"**{row['이름']}** ({row['문파']})")
+            with r3: st.write(f"{row['분배금_v']:,} 다이아")
+            with r4:
+                # 상태 및 관리자 버튼
+                if row['정산상태'] == "정산완료":
+                    st.success("✅ 완료")
+                else:
+                    if st.session_state.authenticated:
+                        if st.button("정산하기", key=f"pay_btn_{row['이름']}_{idx}"):
+                            try:
+                                idx_map = {name: i+1 for i, name in enumerate(sheet_header)}
+                                sheet_row_idx = df[df['이름'] == row['이름']].index[0] + 8
+                                worksheet.update_cell(sheet_row_idx, idx_map['정산상태'], "정산완료")
+                                st.toast(f"✅ {row['이름']}님 정산 처리됨")
+                                st.cache_data.clear(); st.rerun()
+                            except: st.error("시트 업데이트 실패")
+                    else:
+                        st.warning("⏳ 대기")
+            st.divider()
 
     with tabs[7]: # 📝 투력 갱신
         st.subheader("📝 내 전투력 직접 갱신")
