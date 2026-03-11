@@ -186,7 +186,7 @@ if isinstance(df, pd.DataFrame):
                     except: st.error("시트에 '비밀번호' 열이 없습니다.")
                 
                 if st.checkbox("🔑 비밀번호 명단 보기"):
-                    st.dataframe(df[['이름', '비밀번호']], hide_index=True)
+                    st.dataframe(df[['이름','비밀번호']], hide_index=True)
 
             if st.session_state.authenticated and st.button("로그아웃"): st.session_state.authenticated = False; st.rerun()
 
@@ -328,5 +328,6 @@ if isinstance(df, pd.DataFrame):
                     else: st.error("❌ 비밀번호가 올바르지 않거나 닉네임이 잘못되었습니다.")
 
 else: st.error("데이터 로드 실패: 구글 시트 연결을 확인하세요.")
+
 
 
