@@ -80,7 +80,7 @@ def display_custom_table(dataframe, columns_to_show, column_names):
         html += '<tr>' + "".join([f'<td>{val}</td>' for val in row]) + '</tr>'
     st.markdown(html + '</tbody></table>', unsafe_allow_html=True)
 
-# 📂 데이터 로드 (시트 연동 및 데이터 전처리)
+# 📂 데이터 로드 (KeyError 방지 로직 적용)
 @st.cache_data(ttl=2)
 def load_all_guild_data():
     try:
@@ -92,8 +92,8 @@ def load_all_guild_data():
         sheet = spreadsheet.sheet1
         all_data = sheet.get_all_values()
         
-        # 7행이 헤더 (인덱스 6)
-        header = all_data[6]
+        # [수정] 헤더의 양끝 공백을 제거하여 KeyError를 근본적으로 방지합니다.
+        header = [h.strip() for h in all_data[6]]
         rows = all_data[7:]
         df = pd.DataFrame(rows, columns=header)
         df = df[df['이름'].str.strip() != ""].copy()
@@ -114,7 +114,6 @@ def load_all_guild_data():
         
         # 성장률 값 추출 (정렬용)
         def parse_growth_val(val):
-            # 괄호 안의 퍼센트 수치를 찾아 정렬에 사용
             percent = re.search(r'([\d\.]+)(?=%)', str(val))
             return float(percent.group(1)) if percent else 0.0
 
@@ -166,7 +165,7 @@ if isinstance(df, pd.DataFrame):
             
         st.divider()
         
-        # ADMIN 섹션 (비밀번호 일괄 생성 포함)
+        # [수정] ADMIN 섹션: 명단 보기 시 열 존재 여부 체크 로직 추가
         with st.expander("🔐 ADMIN", expanded=st.session_state.authenticated):
             admin_pw = st.text_input("PASSWORD", type="password", key="admin_pw_main")
             if admin_pw == "rkdhkdthfdl12": 
@@ -186,14 +185,19 @@ if isinstance(df, pd.DataFrame):
                     except: st.error("시트에 '비밀번호' 열이 없습니다.")
                 
                 if st.checkbox("🔑 비밀번호 명단 보기"):
-                    st.dataframe(df[['이름', '비밀번호']], hide_index=True)
+                    target_cols = ['이름', '비밀번호']
+                    if all(col in df.columns for col in target_cols):
+                        st.dataframe(df[target_cols], hide_index=True)
+                    else:
+                        missing = [col for col in target_cols if col not in df.columns]
+                        st.error(f"시트 헤더에서 다음 열을 찾을 수 없습니다: {missing}")
 
             if st.session_state.authenticated and st.button("로그아웃"): st.session_state.authenticated = False; st.rerun()
 
     # --- 메인 본문 ---
     st.title("🛡️ COMMAND CENTER")
     
-    # 🔍 검색 섹션 (프로필 카드 기능 유지)
+    # 🔍 검색 섹션
     search_query = st.text_input("🔍 길드원 상세 검색", placeholder="닉네임을 입력하여 프로필 카드를 확인하세요.")
     if search_query:
         search_result = df[df['이름'].str.contains(search_query, case=False, na=False)]
@@ -290,7 +294,7 @@ if isinstance(df, pd.DataFrame):
         money_rank['상태'] = money_rank['정산상태'].apply(lambda x: "✅ 완료" if x == "정산완료" else "⏳ 대기")
         display_custom_table(money_rank, ['순위', '문파', '이름', '분배금_표시', '상태'], ['순위', '문파', '이름', '분배금', '상태'])
 
-    with tabs[7]: # 📝 투력 갱신 (핵심 기능)
+    with tabs[7]: # 📝 투력 갱신
         st.subheader("📝 내 전투력 직접 갱신")
         st.info("💡 개인 비밀번호를 입력하면 **전투력**과 **성장률**이 즉시 계산되어 반영됩니다.")
         
@@ -310,7 +314,6 @@ if isinstance(df, pd.DataFrame):
                             row_idx = df[df['이름'] == target_user].index[0] + 8
                             
                             # 2. 성장률 계산 로직
-                            # 현재 시트에 적힌 '전투력'을 이전 값으로 사용
                             old_cp = user_row['전투력_v']
                             diff = new_cp_val - old_cp
                             growth_p = (diff / old_cp * 100) if old_cp > 0 else 0
