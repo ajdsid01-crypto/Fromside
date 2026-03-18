@@ -17,7 +17,6 @@ st.markdown("""
     .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
     h1, h2, h3, [data-testid="stMetricValue"] { color: #76B900 !important; font-weight: bold !important; }
     
-    /* 🏆 메달 및 검색 카드 디자인 */
     .medal-box, .search-card {
         background: rgba(118, 185, 0, 0.08);
         border: 1px solid rgba(118, 185, 0, 0.3);
@@ -34,7 +33,6 @@ st.markdown("""
     .card-label { color: #888; font-size: 12px; margin-bottom: 2px; }
     .card-value { color: #FFF; font-size: 18px; font-weight: bold; color: #76B900; }
 
-    /* 커스텀 테이블 스타일 */
     .custom-table {
         width: 100%; border-collapse: collapse; color: white; background-color: #111;
         border-radius: 10px; overflow: hidden; margin-top: 10px;
@@ -45,14 +43,12 @@ st.markdown("""
     }
     .custom-table td { padding: 10px 15px; border-bottom: 1px solid #222; text-align: left; font-size: 0.85rem; }
 
-    /* 거래소 카드 스타일 */
     .market-card {
         background: #111; border: 1px solid #222; border-left: 5px solid #76B900;
         padding: 15px; border-radius: 10px; margin-bottom: 8px;
         display: flex; justify-content: space-between; align-items: center;
     }
     
-    /* 💰 정산 리스트 간격 축소 스타일 추가 */
     .settle-row {
         border-bottom: 1px solid #222;
         padding: 5px 0px;
@@ -60,7 +56,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 🏆 공통 로직 함수 (순위 메달 및 테이블 출력)
+# 🏆 공통 로직 함수
 def add_medal_logic(df):
     df = df.reset_index(drop=True)
     df.insert(0, 'Rank', range(1, len(df) + 1))
@@ -127,12 +123,13 @@ def load_all_guild_data():
 
 spreadsheet, worksheet, df, sheet_header, market_worksheet, market_df = load_all_guild_data()
 
-# 📊 화면 구성 시작
 if isinstance(df, pd.DataFrame):
     if "authenticated" not in st.session_state: st.session_state.authenticated = False
     
     with st.sidebar:
         st.markdown("<div style='text-align:center; padding-bottom:10px;'><img src='https://img.icons8.com/neon/150/shield.png' width='75'></div>", unsafe_allow_html=True)
+        
+        # 🕒 [수정] 보탐 레이더 타이머 (18, 19, 22, 23시로 업데이트)
         timer_html = """
         <div style="background:linear-gradient(135deg,#151515,#0a0a0a); border:1px solid #76B90066; padding:15px; border-radius:10px; text-align:center;">
             <div style="font-size:11px; color:#888; font-weight:bold; margin-bottom:5px;">NEXT BOSS RADAR</div>
@@ -141,9 +138,9 @@ if isinstance(df, pd.DataFrame):
         <script>
         function up(){
             const n=new Date(new Date().toLocaleString("en-US",{timeZone:"Asia/Seoul"}));
-            const b=[14,18,22];let t=null;
+            const b=[18, 19, 22, 23];let t=null;
             for(let h of b){let x=new Date(n);x.setHours(h,0,0,0);if(n<x){t=x;break;}}
-            if(!t){t=new Date(n);t.setDate(n.getDate()+1);t.setHours(14,0,0,0);}
+            if(!t){t=new Date(n);t.setDate(n.getDate()+1);t.setHours(18,0,0,0);}
             const d=t-n;
             const h=String(Math.floor(d/3600000)).padStart(2,'0'), m=String(Math.floor((d%3600000)/60000)).padStart(2,'0'), s=String(Math.floor((d%60000)/1000)).padStart(2,'0');
             document.getElementById('sidebar-timer').innerText=h+":"+m+":"+s;
@@ -151,6 +148,7 @@ if isinstance(df, pd.DataFrame):
         </script>
         """
         components.html(timer_html, height=120)
+        
         if st.button("🔄 최신 데이터 불러오기", use_container_width=True): st.cache_data.clear(); st.rerun()
         st.divider()
         st.subheader("📺 실시간 방송")
@@ -181,9 +179,6 @@ if isinstance(df, pd.DataFrame):
                     target_cols = ['이름', '비밀번호']
                     if all(col in df.columns for col in target_cols):
                         st.dataframe(df[target_cols], hide_index=True)
-                    else:
-                        missing = [col for col in target_cols if col not in df.columns]
-                        st.error(f"시트 헤더에서 다음 열을 찾을 수 없습니다: {missing}")
             if st.session_state.authenticated and st.button("로그아웃"): st.session_state.authenticated = False; st.rerun()
 
     st.title("🛡️ COMMAND CENTER")
@@ -199,7 +194,6 @@ if isinstance(df, pd.DataFrame):
                 with c3: st.markdown(f"<div class='search-card'><div class='card-label'>전투력</div><div class='card-value'>{row['전투력_v']:,}</div></div>", unsafe_allow_html=True)
                 with c4: st.markdown(f"<div class='search-card'><div class='card-label'>문파</div><div class='card-value'>{row['문파']}</div></div>", unsafe_allow_html=True)
                 with c5: st.markdown(f"<div class='search-card'><div class='card-label'>성장률</div><div class='card-value'>{row['성장']}</div></div>", unsafe_allow_html=True)
-        else: st.warning(f"'{search_query}' 닉네임을 찾을 수 없습니다.")
 
     tabs = st.tabs(["⚔️ 보탐 현황", "🛡️ 투력 현황", "🔥 성장 랭킹", "🏆 직업별 랭킹", "🛍️ 문파 거래소", "📊 분석 통계", "💰 정산 현황", "📝 투력 갱신"])
 
@@ -210,7 +204,15 @@ if isinstance(df, pd.DataFrame):
         st.divider()
         st.markdown("##### 📜 전체 보탐 참여 명단")
         boss_vis = add_medal_logic(boss_sorted)
-        display_custom_table(boss_vis, ['순위', '문파', '이름', '누계_v', '14시', '18시', '22시'], ['순위', '문파', '이름', '누계', '14시', '18시', '22시'])
+        
+        # 🕒 [수정] 테이블 헤더 업데이트 (18, 19, 22, 23시)
+        boss_cols = ['순위', '문파', '이름', '누계_v', '18시', '19시', '22시', '23시']
+        boss_names = ['순위', '문파', '이름', '누계', '18시', '19시', '22시', '23시']
+        
+        # 시트 헤더에 해당 컬럼이 있는지 확인 후 출력
+        available_cols = [c for c in boss_cols if c in boss_vis.columns or c == '순위']
+        available_names = [boss_names[boss_cols.index(c)] for c in available_cols]
+        display_custom_table(boss_vis, available_cols, available_names)
 
     with tabs[1]: # 🛡️ 투력 현황
         st.subheader("👑 전투력 순위 (Top 3)")
@@ -274,11 +276,7 @@ if isinstance(df, pd.DataFrame):
     with tabs[6]: # 💰 정산 현황
         st.subheader("💰 정산 대상자 리스트")
         money_df = df[df['전투력_v'] > 1].sort_values(by=["분배금_v", "전투력_v"], ascending=[False, False])
-        
-        # 상단 요약 생략 (공간 절약)
         st.markdown("---")
-        
-        # 정산 리스트 제목행 (간격 최적화)
         h1, h2, h3, h4 = st.columns([0.5, 2.5, 1.5, 1.5])
         with h1: st.caption("순위")
         with h2: st.caption("이름 (문파)")
@@ -286,9 +284,7 @@ if isinstance(df, pd.DataFrame):
         with h4: st.caption("상태/관리")
 
         money_rank = add_medal_logic(money_df)
-        
         for idx, row in money_rank.iterrows():
-            # 공간을 줄이기 위해 컨테이너 또는 얇은 구분선 사용
             with st.container():
                 r1, r2, r3, r4 = st.columns([0.5, 2.5, 1.5, 1.5])
                 with r1: st.write(row['순위'])
@@ -299,8 +295,7 @@ if isinstance(df, pd.DataFrame):
                         st.markdown("<span style='color:#76B900; font-size:12px;'>● 정산완료</span>", unsafe_allow_html=True)
                     else:
                         if st.session_state.authenticated:
-                            # 버튼 크기를 작게 유지하기 위해 아이콘 또는 짧은 텍스트 사용
-                            if st.button("정산", key=f"p_{row['이름']}_{idx}", help="클릭 시 정산완료로 변경"):
+                            if st.button("정산", key=f"p_{row['이름']}_{idx}"):
                                 try:
                                     idx_map = {name: i+1 for i, name in enumerate(sheet_header)}
                                     sheet_row_idx = df[df['이름'] == row['이름']].index[0] + 8
