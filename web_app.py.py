@@ -99,6 +99,12 @@ def load_all_guild_data():
         df = pd.DataFrame(rows, columns=header)
         df = df[df['이름'].str.strip() != ""].copy()
         
+        # 🕒 보탐 'X' 표시를 화면에서 빈칸으로 처리
+        boss_cols_to_clean = ['18시', '19시', '22시', '23시']
+        for col in boss_cols_to_clean:
+            if col in df.columns:
+                df[col] = df[col].replace(['X', 'x'], '')
+
         market_sheet = spreadsheet.worksheet("거래소")
         m_values = market_sheet.get_all_values()
         market_df = pd.DataFrame(m_values[1:], columns=["판매자", "아이템이름", "가격", "상태"]) if len(m_values) > 1 else pd.DataFrame(columns=["판매자", "아이템이름", "가격", "상태"])
@@ -111,6 +117,11 @@ def load_all_guild_data():
         df['누계_v'] = df['누계'].apply(to_int)
         df['분배금_v'] = df['분배금'].apply(to_int)
         
+        if '기준전투력' in df.columns:
+            df['기준전투력_v'] = df['기준전투력'].apply(to_int)
+        else:
+            df['기준전투력_v'] = 0
+
         def parse_growth_val(val):
             percent = re.search(r'([\d\.]+)(?=%)', str(val))
             return float(percent.group(1)) if percent else 0.0
@@ -123,13 +134,12 @@ def load_all_guild_data():
 
 spreadsheet, worksheet, df, sheet_header, market_worksheet, market_df = load_all_guild_data()
 
+# 📊 화면 구성 시작
 if isinstance(df, pd.DataFrame):
     if "authenticated" not in st.session_state: st.session_state.authenticated = False
     
     with st.sidebar:
         st.markdown("<div style='text-align:center; padding-bottom:10px;'><img src='https://img.icons8.com/neon/150/shield.png' width='75'></div>", unsafe_allow_html=True)
-        
-        # 🕒 [수정] 보탐 레이더 타이머 (18, 19, 22, 23시로 업데이트)
         timer_html = """
         <div style="background:linear-gradient(135deg,#151515,#0a0a0a); border:1px solid #76B90066; padding:15px; border-radius:10px; text-align:center;">
             <div style="font-size:11px; color:#888; font-weight:bold; margin-bottom:5px;">NEXT BOSS RADAR</div>
@@ -148,7 +158,6 @@ if isinstance(df, pd.DataFrame):
         </script>
         """
         components.html(timer_html, height=120)
-        
         if st.button("🔄 최신 데이터 불러오기", use_container_width=True): st.cache_data.clear(); st.rerun()
         st.divider()
         st.subheader("📺 실시간 방송")
@@ -204,12 +213,8 @@ if isinstance(df, pd.DataFrame):
         st.divider()
         st.markdown("##### 📜 전체 보탐 참여 명단")
         boss_vis = add_medal_logic(boss_sorted)
-        
-        # 🕒 [수정] 테이블 헤더 업데이트 (18, 19, 22, 23시)
         boss_cols = ['순위', '문파', '이름', '누계_v', '18시', '19시', '22시', '23시']
         boss_names = ['순위', '문파', '이름', '누계', '18시', '19시', '22시', '23시']
-        
-        # 시트 헤더에 해당 컬럼이 있는지 확인 후 출력
         available_cols = [c for c in boss_cols if c in boss_vis.columns or c == '순위']
         available_names = [boss_names[boss_cols.index(c)] for c in available_cols]
         display_custom_table(boss_vis, available_cols, available_names)
@@ -282,7 +287,6 @@ if isinstance(df, pd.DataFrame):
         with h2: st.caption("이름 (문파)")
         with h3: st.caption("분배금")
         with h4: st.caption("상태/관리")
-
         money_rank = add_medal_logic(money_df)
         for idx, row in money_rank.iterrows():
             with st.container():
@@ -303,13 +307,12 @@ if isinstance(df, pd.DataFrame):
                                     st.toast(f"{row['이름']}님 정산 완료!")
                                     st.cache_data.clear(); st.rerun()
                                 except: st.error("실패")
-                        else:
-                            st.markdown("<span style='color:#888; font-size:12px;'>⏳ 대기</span>", unsafe_allow_html=True)
+                        else: st.markdown("<span style='color:#888; font-size:12px;'>⏳ 대기</span>", unsafe_allow_html=True)
             st.markdown("<div style='height:1px; border-bottom:1px solid #222; margin-bottom:10px;'></div>", unsafe_allow_html=True)
 
     with tabs[7]: # 📝 투력 갱신
         st.subheader("📝 내 전투력 직접 갱신")
-        st.info("💡 개인 비밀번호를 입력하면 **전투력**과 **성장률**이 즉시 계산되어 반영됩니다.")
+        st.info("💡 기준전투력을 바탕으로 누적 성장률이 계산됩니다.")
         with st.form("user_update_form"):
             u_col1, u_col2 = st.columns(2)
             with u_col1: target_user = st.selectbox("본인 닉네임 선택", ["선택하세요"] + list(df['이름'].unique()))
@@ -322,15 +325,17 @@ if isinstance(df, pd.DataFrame):
                         try:
                             idx_map = {name: i+1 for i, name in enumerate(sheet_header)}
                             row_idx = df[df['이름'] == target_user].index[0] + 8
-                            old_cp = user_row['전투력_v']
-                            diff = new_cp_val - old_cp
-                            growth_p = (diff / old_cp * 100) if old_cp > 0 else 0
+                            base_cp = user_row['기준전투력_v']
+                            if base_cp <= 0:
+                                base_cp = user_row['전투력_v']
+                                worksheet.update_cell(row_idx, idx_map['기준전투력'], f"{base_cp:,}")
+                            diff = new_cp_val - base_cp
+                            growth_p = (diff / base_cp * 100) if base_cp > 0 else 0
                             growth_str = f"{growth_p:.2f}% ({diff:+,})"
                             worksheet.update_cell(row_idx, idx_map['전투력'], f"{new_cp_val:,}")
                             worksheet.update_cell(row_idx, idx_map['성장'], growth_str)
-                            st.success(f"✅ {target_user}님! {new_cp_val:,}로 업데이트 완료 (성장률: {growth_str})")
+                            st.success(f"✅ {target_user}님! {new_cp_val:,}로 업데이트 완료")
                             st.cache_data.clear(); st.rerun()
-                        except Exception as e: st.error(f"시트 업데이트 중 오류 발생: {e}")
-                    else: st.error("❌ 비밀번호가 올바르지 않거나 닉네임이 잘못되었습니다.")
-
-else: st.error("데이터 로드 실패: 구글 시트 연결을 확인하세요.")
+                        except Exception as e: st.error(f"오류: {e}")
+                    else: st.error("❌ 비밀번호 불일치")
+else: st.error("데이터 로드 실패")
